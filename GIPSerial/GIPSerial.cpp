@@ -7,6 +7,10 @@
 #define MAX_LOADSTRING 100
 #define PI_VID L"0525"
 #define PI_PID L"a4a7"
+#define RASPBERRY_PI_GIP_POLL 0x00af
+#define RASPBERRY_PI_GIP_SYNC 0x00b0
+#define RASPBERRY_PI_GIP_CLEAR 0x00b1
+#define RASPBERRY_PI_GIP_LOCK 0x00b2
 
 // Global Variables:
 HINSTANCE hInst;                                // current instance
@@ -62,11 +66,15 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		MSG msg;
 		HANDLE hSerial = NULL;
 		USHORT cmd = 0x00af;
-		hSerial = CreateFileW(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_WRITE_THROUGH, NULL);
-		if (hSerial == INVALID_HANDLE_VALUE)
+		if (comPath != L"")
 		{
-			hSerial = NULL;
+			hSerial = CreateFile(comPath.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_WRITE_THROUGH, NULL);
+			if (hSerial == INVALID_HANDLE_VALUE)
+			{
+				hSerial = NULL;
+			}
 		}
+
 		// Main message loop:
 		while (true)
 		{
@@ -84,8 +92,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			{
 				if (hSerial)
 				{
-
-
 					if (!WriteFile(hSerial, &cmd, sizeof(cmd), NULL, NULL))
 					{
 						CloseHandle(hSerial);
