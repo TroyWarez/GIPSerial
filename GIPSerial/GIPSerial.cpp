@@ -34,41 +34,75 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(lpCmdLine);
 
     // TODO: Place code here.
+	HANDLE mutex = CreateMutex(0, 0, L"SteamSwitchMutex");
+	MSG msg = {};
 
-    // Initialize global strings
-    LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
-    LoadStringW(hInstance, IDC_GIPSERIAL, szWindowClass, MAX_LOADSTRING);
-    MyRegisterClass(hInstance);
+	switch (GetLastError())
+	{
+	case ERROR_ALREADY_EXISTS:
+		// app already running
+		break;
 
-    // Perform application initialization:
-    if (!InitInstance (hInstance, nCmdShow))
-    {
-        return FALSE;
-    }
+	case ERROR_SUCCESS:
+	{
+		// Initialize global strings
+		LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
+		LoadStringW(hInstance, IDC_GIPSERIAL, szWindowClass, MAX_LOADSTRING);
+		MyRegisterClass(hInstance);
 
-    HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_GIPSERIAL));
+		// Perform application initialization:
+		if (!InitInstance(hInstance, nCmdShow))
+		{
+			return FALSE;
+		}
 
-    MSG msg;
+		HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_GIPSERIAL));
 
-    // Main message loop:
-    while (true)
-    {
-        if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
-        {
-            if (msg.message == WM_QUIT)
-            {
-                break;
-            }
+		ScanForSerialDevices();
+		MSG msg;
+		HANDLE hSerial = NULL;
+		USHORT cmd = 0x00af;
+		hSerial = CreateFileW(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_WRITE_THROUGH, NULL);
+		if (hSerial == INVALID_HANDLE_VALUE)
+		{
+			hSerial = NULL;
+		}
+		// Main message loop:
+		while (true)
+		{
+			if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+			{
+				if (msg.message == WM_QUIT)
+				{
+					break;
+				}
 
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
-        }
-        else
-        {
+				TranslateMessage(&msg);
+				DispatchMessage(&msg);
+			}
+			else
+			{
+				if (hSerial)
+				{
 
-        }
-    }
-    return (int) msg.wParam;
+
+					if (!WriteFile(hSerial, &cmd, sizeof(cmd), NULL, NULL))
+					{
+						CloseHandle(hSerial);
+						return 2;
+					}
+					Sleep(1);
+				}
+			}
+		}
+		if (hSerial)
+		{
+			CloseHandle(hSerial);
+		}
+		return (int)msg.wParam;
+	}
+	}
+	return FALSE;
 }
 
 
@@ -84,7 +118,7 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 
     wcex.cbSize = sizeof(WNDCLASSEX);
 
-    wcex.style          = CS_HREDRAW | CS_VREDRAW;
+    wcex.style          = 0;
     wcex.lpfnWndProc    = WndProc;
     wcex.cbClsExtra     = 0;
     wcex.cbWndExtra     = 0;
@@ -113,8 +147,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
    hInst = hInstance; // Store instance handle in our global variable
 
-   HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-      CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
+   HWND hWnd = CreateWindowW(szWindowClass, szTitle, 0,
+	   0, 0, 0, 0, nullptr, nullptr, hInstance, nullptr);
 
    if (!hWnd)
    {
@@ -141,31 +175,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
-    case WM_COMMAND:
-        {
-            int wmId = LOWORD(wParam);
-            // Parse the menu selections:
-            switch (wmId)
-            {
-            case IDM_ABOUT:
-                DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
-                break;
-            case IDM_EXIT:
-                DestroyWindow(hWnd);
-                break;
-            default:
-                return DefWindowProc(hWnd, message, wParam, lParam);
-            }
-        }
-        break;
-    case WM_PAINT:
-        {
-            PAINTSTRUCT ps;
-            HDC hdc = BeginPaint(hWnd, &ps);
-            // TODO: Add any drawing code that uses hdc here...
-            EndPaint(hWnd, &ps);
-        }
-        break;
     case WM_DESTROY:
         PostQuitMessage(0);
         break;
@@ -174,27 +183,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     }
     return 0;
 }
-
-// Message handler for about box.
-INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    UNREFERENCED_PARAMETER(lParam);
-    switch (message)
-    {
-    case WM_INITDIALOG:
-        return (INT_PTR)TRUE;
-
-    case WM_COMMAND:
-        if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
-        {
-            EndDialog(hDlg, LOWORD(wParam));
-            return (INT_PTR)TRUE;
-        }
-        break;
-    }
-    return (INT_PTR)FALSE;
-}
-
 void ScanForSerialDevices()
 {
 	std::vector<std::wstring> DevicePaths;
