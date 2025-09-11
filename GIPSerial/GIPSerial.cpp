@@ -20,6 +20,7 @@
 #define RASPBERRY_PI_GIP_SYNC 0x00b0
 #define RASPBERRY_PI_GIP_CLEAR 0x00b1
 #define RASPBERRY_PI_GIP_LOCK 0x00b2
+#define RASPBERRY_PI_SYNCED_CONTROLLER_COUNT 0x00b3
 
 // Global Variables:
 HINSTANCE hInst;                                // current instance
