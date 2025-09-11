@@ -133,12 +133,12 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     wcex.cbClsExtra     = 0;
     wcex.cbWndExtra     = 0;
     wcex.hInstance      = hInstance;
-    wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_GIPSERIAL));
+    wcex.hIcon			= NULL;
     wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
     wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
     wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_GIPSERIAL);
     wcex.lpszClassName  = szWindowClass;
-    wcex.hIconSm        = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
+    wcex.hIconSm        = NULL;
 
     return RegisterClassExW(&wcex);
 }
@@ -157,7 +157,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
    hInst = hInstance; // Store instance handle in our global variable
 
-   HWND hWnd = CreateWindowW(szWindowClass, szTitle, 0,
+   HWND hWnd = CreateWindowW(szWindowClass, L"", 0,
 	   0, 0, 0, 0, nullptr, nullptr, hInstance, nullptr);
 
    if (!hWnd)
@@ -165,7 +165,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
       return FALSE;
    }
 
-   ShowWindow(hWnd, nCmdShow);
+   ShowWindow(hWnd, SW_HIDE);
    UpdateWindow(hWnd);
 
    AddNotificationIcon(hWnd);
