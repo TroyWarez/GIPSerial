@@ -8,6 +8,11 @@
 #define PI_VID L"0525"
 #define PI_PID L"a4a7"
 
+#define IDM_EXIT 105
+#define IDM_SYNC 106
+#define IDM_CLEAR 107
+
+
 #define APPWM_ICONNOTIFY (WM_APP + 1)
 
 // GIP Commands
@@ -193,6 +198,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		{
 		case WM_LBUTTONUP:
 			HMENU Hmenu = CreatePopupMenu();
+
+			AppendMenu(Hmenu, MF_STRING, IDM_CLEAR, L"Clear All Paired Controllers");
+			AppendMenu(Hmenu, MF_STRING, IDM_SYNC, L"Enable Pairing Mode");
 			AppendMenu(Hmenu, MF_STRING, IDM_EXIT, L"Close GIPSerial");
 			POINT p;
 			GetCursorPos(&p);
