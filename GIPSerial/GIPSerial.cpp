@@ -7,6 +7,10 @@
 #define MAX_LOADSTRING 100
 #define PI_VID L"0525"
 #define PI_PID L"a4a7"
+
+#define APPWM_ICONNOTIFY (WM_APP + 1)
+
+// GIP Commands
 #define RASPBERRY_PI_GIP_POLL 0x00af
 #define RASPBERRY_PI_GIP_SYNC 0x00b0
 #define RASPBERRY_PI_GIP_CLEAR 0x00b1
@@ -28,6 +32,7 @@ LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 BOOL                FindAllDevices(const GUID* ClassGuid, std::vector<std::wstring>& DevicePaths, std::vector<std::wstring>* DeviceNames);
 void                ScanForSerialDevices();
+BOOL                AddNotificationIcon(HWND hwnd);
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
@@ -68,7 +73,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		USHORT cmd = 0x00af;
 		if (comPath != L"")
 		{
-			hSerial = CreateFile(comPath.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_WRITE_THROUGH, NULL);
+			hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_WRITE_THROUGH, NULL);
 			if (hSerial == INVALID_HANDLE_VALUE)
 			{
 				hSerial = NULL;
@@ -95,7 +100,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 					if (!WriteFile(hSerial, &cmd, sizeof(cmd), NULL, NULL))
 					{
 						CloseHandle(hSerial);
-						return 2;
 					}
 					Sleep(1);
 				}
@@ -164,6 +168,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    ShowWindow(hWnd, nCmdShow);
    UpdateWindow(hWnd);
 
+   AddNotificationIcon(hWnd);
+
    return TRUE;
 }
 
@@ -181,6 +187,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
+	case APPWM_ICONNOTIFY:
+	{
+		switch (lParam)
+		{
+		case WM_LBUTTONUP:
+			PostQuitMessage(0);
+			break;
+		}
+		break;
+	}
+	case WM_CREATE:
+	{
+		AddNotificationIcon(hWnd);
+		break;
+	}
     case WM_DESTROY:
         PostQuitMessage(0);
         break;
@@ -277,4 +298,19 @@ BOOL FindAllDevices(const GUID* ClassGuid, std::vector<std::wstring>& DevicePath
 
 	SetupDiDestroyDeviceInfoList(hdevInfo);
 	return TRUE;
+}
+BOOL AddNotificationIcon(HWND hwnd)
+{
+	NOTIFYICONDATAW nid;
+	nid.hWnd = hwnd;
+	nid.cbSize = sizeof(NOTIFYICONDATAW_V3_SIZE);
+	nid.uTimeout = 500;
+	nid.uID = 1;
+	nid.uFlags = NIF_TIP | NIF_ICON | NIF_MESSAGE | NIF_INFO | 0x00000080;
+	nid.uCallbackMessage = WM_USER + 200;
+	nid.hIcon = LoadIconW(hInst, MAKEINTRESOURCEW(IDI_SMALL));
+	std::copy(L"GIP Serial", L"GIP Serial" + 33, nid.szTip);
+	std::copy(L"GIP Serial", L"GIP Serial" + 13, nid.szTip);
+	nid.uCallbackMessage = APPWM_ICONNOTIFY;
+	return Shell_NotifyIconW(NIM_ADD, &nid);
 }
