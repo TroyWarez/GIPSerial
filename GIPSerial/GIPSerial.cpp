@@ -209,6 +209,78 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		break;
 	}
+	case WM_COMMAND:
+	{
+		int wmId = LOWORD(wParam);
+		// Parse the menu selections:
+		switch (wmId)
+		{
+		case IDM_EXIT:
+			DestroyWindow(hWnd);
+			break;
+		case IDM_SYNC:
+		{
+			int selection = MessageBoxW(hWnd, L"Enable paring mode for the Raspberry Pi ZeroW2 device? Another message box window will appear to indicate if a controller was paired or not. \nClick ok to continue or click cancel to exit", L"GIPSerial", MB_OKCANCEL | MB_ICONQUESTION);
+			switch (selection)
+			{
+			case IDCANCEL:
+				return DefWindowProc(hWnd, message, wParam, lParam);
+			case IDOK:
+			{
+				ScanForSerialDevices();
+				if (comPath != L"")
+				{
+					HANDLE hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_WRITE_THROUGH, NULL);
+					if (hSerial != INVALID_HANDLE_VALUE)
+					{
+						USHORT cmd = RASPBERRY_PI_GIP_SYNC;
+						WriteFile(hSerial, &cmd, sizeof(cmd), NULL, NULL);
+						CloseHandle(hSerial);
+					}
+				}
+				else
+				{
+					MessageBox(hWnd, L"No Raspberry Pi ZeroW2 device found. Please ensure the device is connected and try again. The controller failed to pair with the device.", L"GIPSerial", MB_OK | MB_ICONERROR);
+				}
+			}
+			}
+			break;
+		}
+		case IDM_CLEAR:
+		{
+			int selection = MessageBoxW(hWnd, L"Warning: This option will attempt to unpair all synced controllers.\nClick ok to continue or click cancel to exit.", L"GIPSerial", MB_OKCANCEL | MB_ICONWARNING);
+			switch (selection)
+			{
+			case IDCANCEL:
+				return DefWindowProc(hWnd, message, wParam, lParam);
+			case IDOK:
+			{
+				ScanForSerialDevices();
+				if (comPath != L"")
+				{
+					HANDLE hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_WRITE_THROUGH, NULL);
+					if (hSerial != INVALID_HANDLE_VALUE)
+					{
+						USHORT cmd = RASPBERRY_PI_GIP_CLEAR;
+						WriteFile(hSerial, &cmd, sizeof(cmd), NULL, NULL);
+						CloseHandle(hSerial);
+						MessageBox(hWnd, L"All controllers are now unpaired. To pair again click the option \"Enable Pairing Mode\".", L"GIPSerial", MB_OK | MB_ICONINFORMATION);
+					}
+				}
+				else
+				{
+					MessageBox(hWnd, L"No Raspberry Pi ZeroW2 device found. Please ensure the device is connected and try again.", L"GIPSerial", MB_OK | MB_ICONERROR);
+				}
+				break;
+			}
+			}
+			break;
+		}
+		default:
+			return DefWindowProc(hWnd, message, wParam, lParam);
+		}
+	}
+	break;
 	case WM_CREATE:
 	{
 		AddNotificationIcon(hWnd);
