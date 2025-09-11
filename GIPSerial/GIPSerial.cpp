@@ -192,7 +192,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		switch (lParam)
 		{
 		case WM_LBUTTONUP:
-			PostQuitMessage(0);
+			HMENU Hmenu = CreatePopupMenu();
+			AppendMenu(Hmenu, MF_STRING, IDM_EXIT, L"Close GIPSerial");
+			POINT p;
+			GetCursorPos(&p);
+			TrackPopupMenu(Hmenu, TPM_LEFTBUTTON, p.x, p.y, 0, hWnd, 0);
 			break;
 		}
 		break;
@@ -309,8 +313,8 @@ BOOL AddNotificationIcon(HWND hwnd)
 	nid.uFlags = NIF_TIP | NIF_ICON | NIF_MESSAGE | NIF_INFO | 0x00000080;
 	nid.uCallbackMessage = WM_USER + 200;
 	nid.hIcon = LoadIconW(hInst, MAKEINTRESOURCEW(IDI_SMALL));
-	std::copy(L"GIP Serial", L"GIP Serial" + 33, nid.szTip);
-	std::copy(L"GIP Serial", L"GIP Serial" + 13, nid.szTip);
+	std::copy(L"Click here to open GIP Serial options", L"Click here to open GIP Serial options" + 38, nid.szTip);
+	std::copy(L"Click here to open GIP Serial options", L"Click here to open GIP Serial options" + 26, nid.szTip);
 	nid.uCallbackMessage = APPWM_ICONNOTIFY;
 	return Shell_NotifyIconW(NIM_ADD, &nid);
 }
