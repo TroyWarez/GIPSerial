@@ -144,22 +144,6 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 		dwWaitResult = WaitForMultipleObjects((DWORD)hEvents.size(), hEvents.data(), FALSE, 1);
 		switch (dwWaitResult)
 		{
-		case 0: // hShutdownEvent
-		{
-			for (size_t i = 0; i < hEvents.size(); i++)
-			{
-				if (hEvents[i] != NULL)
-				{
-					CloseHandle(hEvents[i]);
-				}
-			}
-			if (hSerial)
-			{
-				CloseHandle(hSerial);
-				hSerial = NULL;
-			}
-			return 0;
-		}
 		case 1: // hSyncEvent
 		{
 			if (hSyncEvent)
@@ -190,7 +174,38 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 			{
 				ResetEvent(hLockDeviceEvent);
 			}
-			break;
+			cmd = RASPBERRY_PI_GIP_LOCK;
+			if (hSerial)
+			{
+				if (!WriteFile(hSerial, &cmd, sizeof(cmd), NULL, NULL))
+				{
+					CloseHandle(hSerial);
+					hSerial = NULL;
+				}
+				else
+				{
+					if (hShutdownEvent)
+					{
+						SetEvent(hShutdownEvent);
+					}
+				}
+			}
+		}
+		case 0: // hShutdownEvent
+		{
+			for (size_t i = 0; i < hEvents.size(); i++)
+			{
+				if (hEvents[i] != NULL)
+				{
+					CloseHandle(hEvents[i]);
+				}
+			}
+			if (hSerial)
+			{
+				CloseHandle(hSerial);
+				hSerial = NULL;
+			}
+			return 0;
 		}
 		case 5: // hNewDeviceEvent
 		{
@@ -405,10 +420,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		switch (wmId)
 		{
 		case IDM_EXIT:
-			if (hShutdownEvent)
+			if (hLockDeviceEvent)
 			{
-				SetEvent(hShutdownEvent);
-				if (WaitForSingleObject(hShutdownEvent, 5000) == WAIT_OBJECT_0)
+				SetEvent(hLockDeviceEvent);
+				if (hShutdownEvent && WaitForSingleObject(hShutdownEvent, 5000) == WAIT_OBJECT_0)
 				{
 					MessageBox(hWnd, L"The device is now locked and can be re enabled by running GIPSerial again.\nThis is to prevent accidentally shutdowns from happening.", L"GIPSerial Important Information", MB_OK | MB_ICONINFORMATION);
 				}
@@ -416,9 +431,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				{
 					MessageBox(hWnd, L"The device may be unlocked and could power down the current computer unexpectedly when a paired controlled is used.\n\nRun GIPSerial again to fix this.\n\nDo not run GIPSerial unless you have the required Raspberry Pi ZeroW2 serial device connected to your computer.", L"GIPSerial Error", MB_OK | MB_ICONERROR);
 				}
-				CloseHandle(hShutdownEvent);
 			}
 			DestroyWindow(hWnd);
+			PostQuitMessage(0);
 			break;
 		case IDM_SYNC:
 		{
