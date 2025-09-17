@@ -30,6 +30,140 @@ std::wstring devicePath;
 std::wstring comPath;
 std::wstring devicePort;
 
+DWORD WINAPI SerialThread(LPVOID lpParam) {
+
+	UNREFERENCED_PARAMETER(lpParam);
+
+	HANDLE hSerial = CreateFileW(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_WRITE_THROUGH, NULL);
+	if (hSerial == INVALID_HANDLE_VALUE)
+	{
+		hSerial = NULL;
+	}
+
+	DCB dcb = { 0 };
+	dcb.DCBlength = sizeof(dcb);
+	GetCommState(hSerial, &dcb);
+	dcb.BaudRate = CBR_9600;
+	SetCommState(hSerial, &dcb);
+
+	HANDLE hShutdownEvent = OpenEventW(SYNCHRONIZE, FALSE, L"ShutdownEvent");
+	if (hShutdownEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
+	{
+		hShutdownEvent = CreateEventW(NULL, FALSE, FALSE, L"ShutdownEvent");
+	}
+	if (hShutdownEvent)
+	{
+		ResetEvent(hShutdownEvent);
+	}
+
+	HANDLE hSyncEvent = OpenEventW(SYNCHRONIZE, FALSE, L"SyncEvent");
+	if (hSyncEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
+	{
+		hSyncEvent = CreateEventW(NULL, FALSE, FALSE, L"SyncEvent");
+	}
+	if (hSyncEvent)
+	{
+		ResetEvent(hSyncEvent);
+	}
+
+	HANDLE hClearSingleEvent = OpenEventW(SYNCHRONIZE, FALSE, L"ClearSingleEvent");
+	if (hClearSingleEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
+	{
+		hClearSingleEvent = CreateEventW(NULL, FALSE, FALSE, L"ClearSingleEvent");
+	}
+	if (hClearSingleEvent)
+	{
+		ResetEvent(hClearSingleEvent);
+	}
+
+	HANDLE hClearAllEvent = OpenEventW(SYNCHRONIZE, FALSE, L"ClearAllEvent");
+	if (hClearAllEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
+	{
+		hClearAllEvent = CreateEventW(NULL, FALSE, FALSE, L"ClearAllEvent");
+	}
+	if (hClearAllEvent)
+	{
+		ResetEvent(hClearAllEvent);
+	}
+
+	HANDLE hLockDeviceEvent = OpenEventW(SYNCHRONIZE, FALSE, L"LockDeviceEvent");
+	if (hLockDeviceEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
+	{
+		hLockDeviceEvent = CreateEventW(NULL, FALSE, FALSE, L"LockDeviceEvent");
+	}
+	if (hLockDeviceEvent)
+	{
+		ResetEvent(hLockDeviceEvent);
+	}
+
+	std::vector<HANDLE> hEvents;
+
+	hEvents.push_back(hShutdownEvent);
+	hEvents.push_back(hSyncEvent);
+	hEvents.push_back(hClearSingleEvent);
+	hEvents.push_back(hClearAllEvent);
+	hEvents.push_back(hLockDeviceEvent);
+
+
+
+	UCHAR pwrStatus = 0;
+	USHORT cmd = RASPBERRY_PI_GIP_POLL;
+	DWORD dwWaitResult = 0;
+	Sleep(1);
+	while (dwWaitResult <= ((DWORD)hEvents.size() - 1) || dwWaitResult == WAIT_TIMEOUT) {
+		dwWaitResult = WaitForMultipleObjects((DWORD)hEvents.size(), hEvents.data(), FALSE, 1);
+		if (hSerial)
+		{
+			if (!ReadFile(hSerial, &pwrStatus, sizeof(pwrStatus), NULL, NULL))
+			{
+				CloseHandle(hSerial);
+				hSerial = NULL;
+			}
+			else if (!WriteFile(hSerial, &cmd, sizeof(cmd), NULL, NULL))
+			{
+				CloseHandle(hSerial);
+				return 2;
+			}
+			Sleep(1);
+		}
+	}
+
+	// 	DWORD dwWaitResult = 0;
+	// 	while (dwWaitResult <= ((DWORD)hEvents.size() - 1)) {
+	// 		dwWaitResult = WaitForMultipleObjects((DWORD)hEvents.size(), hEvents.data(), FALSE, INFINITE);
+	// 		switch (dwWaitResult)
+	// 		{
+	// 		case 0: // hShutdownEvent
+	// 		{
+	// 			for (size_t i = 0; i < hEvents.size(); i++)
+	// 			{
+	// 				if (hEvents[i] != NULL)
+	// 				{
+	// 					CloseHandle(hEvents[i]);
+	// 				}
+	// 			}
+	// 			return 0;
+	// 		}
+	// 		case 1: // hIRVolumeUpEvent
+	// 		{
+	// 			if (hIRPowerEvent)
+	// 			{
+	// 				ResetEvent(hIRPowerEvent);
+	// 			}
+	// 			break;
+	// 		}
+	// 		case 2: // hIRVolumeUpEvent
+	// 		{
+	// 			if (hIRVolumeUpEvent)
+	// 			{
+	// 				ResetEvent(hIRVolumeUpEvent);
+	// 			}
+	// 			break;
+	// 		}
+	// 		}
+	// 	}
+	return 0;
+}
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -60,6 +194,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	case ERROR_SUCCESS:
 	{
+		HANDLE hShutdownEvent = CreateEventW(NULL, FALSE, FALSE, L"ShutdownEvent");
+		HANDLE hSyncEvent = CreateEventW(NULL, FALSE, FALSE, L"SyncEvent");
+		HANDLE hClearSingleEvent = CreateEventW(NULL, FALSE, FALSE, L"ClearSingleEvent");
+		HANDLE hClearAllEvent = CreateEventW(NULL, FALSE, FALSE, L"ClearAllEvent");
+		HANDLE hLockDeviceEvent = CreateEventW(NULL, FALSE, FALSE, L"LockDeviceEvent");
+		HANDLE hSerialThread = CreateThread(NULL, 0, SerialThread, &comPath, 0, NULL);
 		// Initialize global strings
 		LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
 		LoadStringW(hInstance, IDC_GIPSERIAL, szWindowClass, MAX_LOADSTRING);
@@ -98,17 +238,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 				TranslateMessage(&msg);
 				DispatchMessage(&msg);
-			}
-			else
-			{
-				if (hSerial)
-				{
-					if (!WriteFile(hSerial, &cmd, sizeof(cmd), NULL, NULL))
-					{
-						CloseHandle(hSerial);
-					}
-					Sleep(1);
-				}
 			}
 		}
 		if (hSerial)
