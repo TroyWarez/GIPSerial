@@ -1,4 +1,4 @@
-// GIPSerial.cpp : Defines the entry point for the application.
+// GIPSerial.cpp : Defines the entry point for the application.OpenEventW
 //
 
 #include "framework.h"
@@ -52,7 +52,7 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 
 	UNREFERENCED_PARAMETER(lpParam);
 
-	HANDLE hSerial = CreateFileW(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_WRITE_THROUGH, NULL);
+	HANDLE hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_WRITE_THROUGH, NULL);
 	if (hSerial == INVALID_HANDLE_VALUE)
 	{
 		hSerial = NULL;
@@ -66,60 +66,60 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 		SetCommState(hSerial, &dcb);
 	}
 
-	hShutdownEvent = OpenEventW(SYNCHRONIZE, FALSE, L"ShutdownEvent");
+	hShutdownEvent = OpenEvent(SYNCHRONIZE, FALSE, L"ShutdownEvent");
 	if (hShutdownEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
 	{
-		hShutdownEvent = CreateEventW(NULL, FALSE, FALSE, L"ShutdownEvent");
+		hShutdownEvent = CreateEvent(NULL, FALSE, FALSE, L"ShutdownEvent");
 	}
 	if (hShutdownEvent)
 	{
 		ResetEvent(hShutdownEvent);
 	}
 
-	hSyncEvent = OpenEventW(SYNCHRONIZE, FALSE, L"SyncEvent");
+	hSyncEvent = OpenEvent(SYNCHRONIZE, FALSE, L"SyncEvent");
 	if (hSyncEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
 	{
-		hSyncEvent = CreateEventW(NULL, FALSE, FALSE, L"SyncEvent");
+		hSyncEvent = CreateEvent(NULL, FALSE, FALSE, L"SyncEvent");
 	}
 	if (hSyncEvent)
 	{
 		ResetEvent(hSyncEvent);
 	}
 
-	hClearSingleEvent = OpenEventW(SYNCHRONIZE, FALSE, L"ClearSingleEvent");
+	hClearSingleEvent = OpenEvent(SYNCHRONIZE, FALSE, L"ClearSingleEvent");
 	if (hClearSingleEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
 	{
-		hClearSingleEvent = CreateEventW(NULL, FALSE, FALSE, L"ClearSingleEvent");
+		hClearSingleEvent = CreateEvent(NULL, FALSE, FALSE, L"ClearSingleEvent");
 	}
 	if (hClearSingleEvent)
 	{
 		ResetEvent(hClearSingleEvent);
 	}
 
-	hClearAllEvent = OpenEventW(SYNCHRONIZE, FALSE, L"ClearAllEvent");
+	hClearAllEvent = OpenEvent(SYNCHRONIZE, FALSE, L"ClearAllEvent");
 	if (hClearAllEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
 	{
-		hClearAllEvent = CreateEventW(NULL, FALSE, FALSE, L"ClearAllEvent");
+		hClearAllEvent = CreateEvent(NULL, FALSE, FALSE, L"ClearAllEvent");
 	}
 	if (hClearAllEvent)
 	{
 		ResetEvent(hClearAllEvent);
 	}
 
-	hLockDeviceEvent = OpenEventW(SYNCHRONIZE, FALSE, L"LockDeviceEvent");
+	hLockDeviceEvent = OpenEvent(SYNCHRONIZE, FALSE, L"LockDeviceEvent");
 	if (hLockDeviceEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
 	{
-		hLockDeviceEvent = CreateEventW(NULL, FALSE, FALSE, L"LockDeviceEvent");
+		hLockDeviceEvent = CreateEvent(NULL, FALSE, FALSE, L"LockDeviceEvent");
 	}
 	if (hLockDeviceEvent)
 	{
 		ResetEvent(hLockDeviceEvent);
 	}
 
-	hNewDeviceEvent = OpenEventW(SYNCHRONIZE, FALSE, L"NewDeviceEvent");
+	hNewDeviceEvent = OpenEvent(SYNCHRONIZE, FALSE, L"NewDeviceEvent");
 	if (hNewDeviceEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
 	{
-		hNewDeviceEvent = CreateEventW(NULL, FALSE, FALSE, L"NewDeviceEvent");
+		hNewDeviceEvent = CreateEvent(NULL, FALSE, FALSE, L"NewDeviceEvent");
 	}
 	if (hNewDeviceEvent)
 	{
@@ -257,11 +257,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	case ERROR_SUCCESS:
 	{
-		hShutdownEvent = CreateEventW(NULL, FALSE, FALSE, L"ShutdownEvent");
-		hSyncEvent = CreateEventW(NULL, FALSE, FALSE, L"SyncEvent");
-		hClearSingleEvent = CreateEventW(NULL, FALSE, FALSE, L"ClearSingleEvent");
-		hClearAllEvent = CreateEventW(NULL, FALSE, FALSE, L"ClearAllEvent");
-		hLockDeviceEvent = CreateEventW(NULL, FALSE, FALSE, L"LockDeviceEvent");
+		hShutdownEvent = CreateEvent(NULL, FALSE, FALSE, L"ShutdownEvent");
+		hSyncEvent = CreateEvent(NULL, FALSE, FALSE, L"SyncEvent");
+		hClearSingleEvent = CreateEvent(NULL, FALSE, FALSE, L"ClearSingleEvent");
+		hClearAllEvent = CreateEvent(NULL, FALSE, FALSE, L"ClearAllEvent");
+		hLockDeviceEvent = CreateEvent(NULL, FALSE, FALSE, L"LockDeviceEvent");
 
 		ScanForSerialDevices();
 
@@ -269,8 +269,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 		HANDLE hSerialThread = CreateThread(NULL, 0, SerialThread, NULL, 0, NULL);
 		// Initialize global strings
-		LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
-		LoadStringW(hInstance, IDC_GIPSERIAL, szWindowClass, MAX_LOADSTRING);
+		LoadString(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
+		LoadString(hInstance, IDC_GIPSERIAL, szWindowClass, MAX_LOADSTRING);
 		MyRegisterClass(hInstance);
 
 		// Perform application initialization:
@@ -322,11 +322,11 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     wcex.hIcon			= NULL;
     wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
     wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
-    wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_GIPSERIAL);
+    wcex.lpszMenuName   = MAKEINTRESOURCE(IDC_GIPSERIAL);
     wcex.lpszClassName  = szWindowClass;
     wcex.hIconSm        = NULL;
 
-    return RegisterClassExW(&wcex);
+    return RegisterClassEx(&wcex);
 }
 
 //
@@ -343,7 +343,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
    hInst = hInstance; // Store instance handle in our global variable
 
-   HWND hWnd = CreateWindowW(szWindowClass, L"", 0,
+   HWND hWnd = CreateWindow(szWindowClass, L"", 0,
 	   0, 0, 0, 0, nullptr, nullptr, hInstance, nullptr);
 
    if (!hWnd)
@@ -358,7 +358,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    hidFilter.dbcc_size = sizeof(DEV_BROADCAST_DEVICEINTERFACE);
    hidFilter.dbcc_classguid = GUID_DEVINTERFACE_COMPORT;
    hidFilter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
-   HDEVNOTIFY hDeviceHID = RegisterDeviceNotificationW(hWnd, &hidFilter, DEVICE_NOTIFY_WINDOW_HANDLE);
+   HDEVNOTIFY hDeviceHID = RegisterDeviceNotification(hWnd, &hidFilter, DEVICE_NOTIFY_WINDOW_HANDLE);
 
 
    AddNotificationIcon(hWnd);
@@ -422,7 +422,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			break;
 		case IDM_SYNC:
 		{
-			int selection = MessageBoxW(hWnd, L"Enable paring mode for the Raspberry Pi ZeroW2 device?Another message box window will appear to indicate if a controller was paired or not.\nClick ok to continue or click cancel to exit.", L"GIPSerial", MB_OKCANCEL | MB_ICONQUESTION);
+			int selection = MessageBox(hWnd, L"Enable paring mode for the Raspberry Pi ZeroW2 device?Another message box window will appear to indicate if a controller was paired or not.\nClick ok to continue or click cancel to exit.", L"GIPSerial", MB_OKCANCEL | MB_ICONQUESTION);
 			switch (selection)
 			{
 			case IDCANCEL:
@@ -465,7 +465,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		case IDM_CLEAR_SINGLE:
 		case IDM_CLEAR:
 		{
-			int selection = MessageBoxW(hWnd, L"Warning: This option will attempt to unpair all synced controllers.\nClick ok to continue or click cancel to exit.", L"GIPSerial Warning", MB_OKCANCEL | MB_ICONWARNING);
+			int selection = MessageBox(hWnd, L"Warning: This option will attempt to unpair all synced controllers.\nClick ok to continue or click cancel to exit.", L"GIPSerial Warning", MB_OKCANCEL | MB_ICONWARNING);
 			switch (selection)
 			{
 			case IDCANCEL:
@@ -576,11 +576,11 @@ BOOL FindAllDevices(const GUID* ClassGuid, std::vector<std::wstring>& DevicePath
 			}
 		}
 		if (DeviceNames != nullptr) {
-			if (CM_Get_DevNode_Registry_PropertyW(deviceData.DevInst, CM_DRP_FRIENDLYNAME, NULL, NULL, &DataSize, 0) != CR_NO_SUCH_VALUE)
+			if (CM_Get_DevNode_Registry_Property(deviceData.DevInst, CM_DRP_FRIENDLYNAME, NULL, NULL, &DataSize, 0) != CR_NO_SUCH_VALUE)
 			{
 				if (DataSize) {
 					deviceName = (WCHAR*)HeapAlloc(GetProcessHeap(), 0, DataSize * sizeof(WCHAR) + 2);
-					if (CM_Get_DevNode_Registry_PropertyW(deviceData.DevInst, CM_DRP_FRIENDLYNAME, NULL, deviceName, &DataSize, 0) == CR_SUCCESS)
+					if (CM_Get_DevNode_Registry_Property(deviceData.DevInst, CM_DRP_FRIENDLYNAME, NULL, deviceName, &DataSize, 0) == CR_SUCCESS)
 					{
 						if (deviceName != 0) {
 							DeviceNames->push_back(deviceName);
@@ -598,7 +598,7 @@ BOOL FindAllDevices(const GUID* ClassGuid, std::vector<std::wstring>& DevicePath
 			return FALSE;
 		}
 		deviceDetails->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_W);
-		if (SetupDiGetDeviceInterfaceDetailW(hdevInfo, &deviceInterfaceData, deviceDetails, MAX_PATH * sizeof(WCHAR) + sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_W), NULL, NULL) == TRUE)
+		if (SetupDiGetDeviceInterfaceDetail(hdevInfo, &deviceInterfaceData, deviceDetails, MAX_PATH * sizeof(WCHAR) + sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_W), NULL, NULL) == TRUE)
 		{
 			std::wstring DevicePath = deviceDetails->DevicePath;
 			HeapFree(GetProcessHeap(), 0, deviceDetails);
@@ -618,9 +618,9 @@ BOOL AddNotificationIcon(HWND hwnd)
 	nid.uID = 1;
 	nid.uFlags = NIF_TIP | NIF_ICON | NIF_MESSAGE | NIF_INFO | 0x00000080;
 	nid.uCallbackMessage = WM_USER + 200;
-	nid.hIcon = LoadIconW(hInst, MAKEINTRESOURCEW(IDI_SMALL));
+	nid.hIcon = LoadIcon(hInst, MAKEINTRESOURCE(IDI_SMALL));
 	std::copy(L"Click here to open GIP Serial options", L"Click here to open GIP Serial options" + 38, nid.szTip);
 	std::copy(L"Click here to open GIP Serial options", L"Click here to open GIP Serial options" + 26, nid.szTip);
 	nid.uCallbackMessage = APPWM_ICONNOTIFY;
-	return Shell_NotifyIconW(NIM_ADD, &nid);
+	return Shell_NotifyIcon(NIM_ADD, &nid);
 }
