@@ -14,6 +14,7 @@
 #include <dbt.h>
 #include <setupapi.h>
 #include <winioctl.h>
+#include <timeapi.h>
 // C RunTime Header Files
 #include <vector>
 #include <string>

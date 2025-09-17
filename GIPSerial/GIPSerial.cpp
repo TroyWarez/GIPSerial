@@ -135,18 +135,21 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 	hEvents.push_back(hLockDeviceEvent);
 	hEvents.push_back(hNewDeviceEvent);
 
-	UCHAR pwrStatus = 0;
+	UCHAR currentControllerCount = 0;
+	UCHAR lastControllerCount = 0;
 	USHORT cmd = RASPBERRY_PI_GIP_POLL;
 	DWORD dwWaitResult = 0;
-
+	DWORD currentTime = 0;
+	DWORD endTime = 0;
 	dwWaitResult = WAIT_TIMEOUT;
 	while (dwWaitResult == WAIT_TIMEOUT) {
 		dwWaitResult = WaitForMultipleObjects((DWORD)hEvents.size(), hEvents.data(), FALSE, 1);
+		currentTime = timeGetTime();
 		switch (dwWaitResult)
 		{
 		case 1: // hSyncEvent
 		{
-			if (hSyncEvent && dwWaitResult == 1)
+			if (hSyncEvent && dwWaitResult == 1) // check current time
 			{
 				ResetEvent(hSyncEvent);
 				cmd = RASPBERRY_PI_GIP_SYNC;
@@ -169,10 +172,9 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 			}
 		}
 		case WAIT_TIMEOUT: {
-
 			if (hSerial)
 			{
-				if (!ReadFile(hSerial, &pwrStatus, sizeof(pwrStatus), NULL, NULL))
+				if (!ReadFile(hSerial, &currentControllerCount, sizeof(currentControllerCount), NULL, NULL))
 				{
 					CloseHandle(hSerial);
 					hSerial = NULL;
@@ -181,6 +183,28 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 				{
 					CloseHandle(hSerial);
 					hSerial = NULL;
+				}
+
+				if ( dwWaitResult == 1 )
+				{
+					lastControllerCount = currentControllerCount;
+					DWORD endTime = timeGetTime();
+					endTime = endTime + 30000;
+					dwWaitResult = WAIT_TIMEOUT;
+				}
+				else if (currentControllerCount != lastControllerCount && currentControllerCount > 0)
+				{
+					if (hShutdownEvent)
+					{
+						SetEvent(hShutdownEvent);
+					}
+				}
+				else if (currentControllerCount == 0 && lastControllerCount != 0)
+				{
+					if (hShutdownEvent)
+					{
+						ResetEvent(hShutdownEvent);
+					}
 				}
 			}
 			break;
