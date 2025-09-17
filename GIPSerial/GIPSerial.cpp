@@ -32,6 +32,12 @@ std::wstring devicePath;
 std::wstring comPath;
 std::wstring devicePort;
 
+HANDLE hShutdownEvent = NULL;
+HANDLE hSyncEvent = NULL;
+HANDLE hClearSingleEvent = NULL;
+HANDLE hClearAllEvent = NULL;
+HANDLE hLockDeviceEvent = NULL;
+
 DWORD WINAPI SerialThread(LPVOID lpParam) {
 
 	UNREFERENCED_PARAMETER(lpParam);
@@ -112,58 +118,74 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 	USHORT cmd = RASPBERRY_PI_GIP_POLL;
 	DWORD dwWaitResult = 0;
 	Sleep(1);
-	while (dwWaitResult <= ((DWORD)hEvents.size() - 1) || dwWaitResult == WAIT_TIMEOUT) {
+// 	while (dwWaitResult <= ((DWORD)hEvents.size() - 1) || dwWaitResult == WAIT_TIMEOUT) {
+// 		dwWaitResult = WaitForMultipleObjects((DWORD)hEvents.size(), hEvents.data(), FALSE, 1);
+// 		if (hSerial)
+// 		{
+// 			if (!ReadFile(hSerial, &pwrStatus, sizeof(pwrStatus), NULL, NULL))
+// 			{
+// 				CloseHandle(hSerial);
+// 				hSerial = NULL;
+// 			}
+// 			else if (!WriteFile(hSerial, &cmd, sizeof(cmd), NULL, NULL))
+// 			{
+// 				CloseHandle(hSerial);
+// 				return 2;
+// 			}
+// 			Sleep(1);
+// 		}
+// 	}
+
+	DWORD dwWaitResult = 0;
+	while (dwWaitResult <= ((DWORD)hEvents.size() - 1)) {
 		dwWaitResult = WaitForMultipleObjects((DWORD)hEvents.size(), hEvents.data(), FALSE, 1);
-		if (hSerial)
+		switch (dwWaitResult)
 		{
-			if (!ReadFile(hSerial, &pwrStatus, sizeof(pwrStatus), NULL, NULL))
+		case 0: // hShutdownEvent
+		{
+			for (size_t i = 0; i < hEvents.size(); i++)
 			{
-				CloseHandle(hSerial);
-				hSerial = NULL;
+				if (hEvents[i] != NULL)
+				{
+					CloseHandle(hEvents[i]);
+				}
 			}
-			else if (!WriteFile(hSerial, &cmd, sizeof(cmd), NULL, NULL))
+			return 0;
+		}
+		case 1: // hSyncEvent
+		{
+			if (hSyncEvent)
 			{
-				CloseHandle(hSerial);
-				return 2;
+				ResetEvent(hSyncEvent);
 			}
-			Sleep(1);
+			break;
+		}
+		case 2: // hClearSingleEvent
+		{
+			if (hClearSingleEvent)
+			{
+				ResetEvent(hClearSingleEvent);
+			}
+			break;
+		}
+		case 3: // hClearAllEvent
+		{
+			if (hClearAllEvent)
+			{
+				ResetEvent(hClearAllEvent);
+			}
+			break;
+		}
+		case 4: // hLockDeviceEvent
+		{
+			if (hLockDeviceEvent)
+			{
+				ResetEvent(hLockDeviceEvent);
+			}
+			break;
+		}
 		}
 	}
-
-	// 	DWORD dwWaitResult = 0;
-	// 	while (dwWaitResult <= ((DWORD)hEvents.size() - 1)) {
-	// 		dwWaitResult = WaitForMultipleObjects((DWORD)hEvents.size(), hEvents.data(), FALSE, INFINITE);
-	// 		switch (dwWaitResult)
-	// 		{
-	// 		case 0: // hShutdownEvent
-	// 		{
-	// 			for (size_t i = 0; i < hEvents.size(); i++)
-	// 			{
-	// 				if (hEvents[i] != NULL)
-	// 				{
-	// 					CloseHandle(hEvents[i]);
-	// 				}
-	// 			}
-	// 			return 0;
-	// 		}
-	// 		case 1: // hIRVolumeUpEvent
-	// 		{
-	// 			if (hIRPowerEvent)
-	// 			{
-	// 				ResetEvent(hIRPowerEvent);
-	// 			}
-	// 			break;
-	// 		}
-	// 		case 2: // hIRVolumeUpEvent
-	// 		{
-	// 			if (hIRVolumeUpEvent)
-	// 			{
-	// 				ResetEvent(hIRVolumeUpEvent);
-	// 			}
-	// 			break;
-	// 		}
-	// 		}
-	// 	}
 	return 0;
 }
 
@@ -196,11 +218,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	case ERROR_SUCCESS:
 	{
-		HANDLE hShutdownEvent = CreateEventW(NULL, FALSE, FALSE, L"ShutdownEvent");
-		HANDLE hSyncEvent = CreateEventW(NULL, FALSE, FALSE, L"SyncEvent");
-		HANDLE hClearSingleEvent = CreateEventW(NULL, FALSE, FALSE, L"ClearSingleEvent");
-		HANDLE hClearAllEvent = CreateEventW(NULL, FALSE, FALSE, L"ClearAllEvent");
-		HANDLE hLockDeviceEvent = CreateEventW(NULL, FALSE, FALSE, L"LockDeviceEvent");
+		hShutdownEvent = CreateEventW(NULL, FALSE, FALSE, L"ShutdownEvent");
+		hSyncEvent = CreateEventW(NULL, FALSE, FALSE, L"SyncEvent");
+		hClearSingleEvent = CreateEventW(NULL, FALSE, FALSE, L"ClearSingleEvent");
+		hClearAllEvent = CreateEventW(NULL, FALSE, FALSE, L"ClearAllEvent");
+		hLockDeviceEvent = CreateEventW(NULL, FALSE, FALSE, L"LockDeviceEvent");
 		HANDLE hSerialThread = CreateThread(NULL, 0, SerialThread, &comPath, 0, NULL);
 		// Initialize global strings
 		LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
@@ -356,21 +378,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		switch (wmId)
 		{
 		case IDM_EXIT:
-			ScanForSerialDevices();
-			if (comPath != L"")
+			if (hShutdownEvent)
 			{
-				HANDLE hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_WRITE_THROUGH, NULL);
-				if (hSerial != INVALID_HANDLE_VALUE)
+				SetEvent(hShutdownEvent);
+				if (WaitForSingleObject(hShutdownEvent, 5000) == WAIT_OBJECT_0)
 				{
-					USHORT cmd = RASPBERRY_PI_GIP_LOCK;
-					WriteFile(hSerial, &cmd, sizeof(cmd), NULL, NULL);
-					CloseHandle(hSerial);
 					MessageBox(hWnd, L"The device is now locked and can be re enabled by running GIPSerial again.\nThis is to prevent accidentally shutdowns from happening.", L"GIPSerial Important Information", MB_OK | MB_ICONINFORMATION);
 				}
-			}
-			else
-			{
-				MessageBox(hWnd, L"The device may be unlocked and could power down the current computer unexpectedly when a paired controlled is used.\n\nRun GIPSerial again to fix this.\n\nDo not run GIPSerial unless you have the required Raspberry Pi ZeroW2 serial device connected to your computer.", L"GIPSerial Error", MB_OK | MB_ICONERROR);
+				else
+				{
+					MessageBox(hWnd, L"The device may be unlocked and could power down the current computer unexpectedly when a paired controlled is used.\n\nRun GIPSerial again to fix this.\n\nDo not run GIPSerial unless you have the required Raspberry Pi ZeroW2 serial device connected to your computer.", L"GIPSerial Error", MB_OK | MB_ICONERROR);
+				}
+				CloseHandle(hShutdownEvent);
 			}
 			DestroyWindow(hWnd);
 			break;
@@ -383,6 +402,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				return DefWindowProc(hWnd, message, wParam, lParam);
 			case IDOK:
 			{
+				if (hSyncEvent) // get current time
+				{
+					ResetEvent(hSyncEvent);
+					SetEvent(hSyncEvent);
+					if (WaitForSingleObject(hShutdownEvent, 5000) == WAIT_OBJECT_0)
+					{
+						MessageBox(hWnd, L"The device is now locked and can be re enabled by running GIPSerial again.\nThis is to prevent accidentally shutdowns from happening.", L"GIPSerial Important Information", MB_OK | MB_ICONINFORMATION);
+					}
+					else
+					{
+						MessageBox(hWnd, L"The device may be unlocked and could power down the current computer unexpectedly when a paired controlled is used.\n\nRun GIPSerial again to fix this.\n\nDo not run GIPSerial unless you have the required Raspberry Pi ZeroW2 serial device connected to your computer.", L"GIPSerial Error", MB_OK | MB_ICONERROR);
+					}
+					CloseHandle(hShutdownEvent);
+				}
 				ScanForSerialDevices();
 				if (comPath != L"")
 				{
