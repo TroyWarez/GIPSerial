@@ -138,24 +138,6 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 	UCHAR pwrStatus = 0;
 	USHORT cmd = RASPBERRY_PI_GIP_POLL;
 	DWORD dwWaitResult = 0;
-	Sleep(1);
-	// 	while (dwWaitResult <= ((DWORD)hEvents.size() - 1) || dwWaitResult == WAIT_TIMEOUT) {
-	// 		dwWaitResult = WaitForMultipleObjects((DWORD)hEvents.size(), hEvents.data(), FALSE, 1);
-	// 		if (hSerial)
-	// 		{
-	// 			if (!ReadFile(hSerial, &pwrStatus, sizeof(pwrStatus), NULL, NULL))
-	// 			{
-	// 				CloseHandle(hSerial);
-	// 				hSerial = NULL;
-	// 			}
-	// 			else if (!WriteFile(hSerial, &cmd, sizeof(cmd), NULL, NULL))
-	// 			{
-	// 				CloseHandle(hSerial);
-	// 				return 2;
-	// 			}
-	// 			Sleep(1);
-	// 		}
-	// 	}
 
 	dwWaitResult = WAIT_TIMEOUT;
 	while (dwWaitResult == WAIT_TIMEOUT) {
@@ -170,6 +152,11 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 				{
 					CloseHandle(hEvents[i]);
 				}
+			}
+			if (hSerial)
+			{
+				CloseHandle(hSerial);
+				hSerial = NULL;
 			}
 			return 0;
 		}
@@ -275,7 +262,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		hClearSingleEvent = CreateEventW(NULL, FALSE, FALSE, L"ClearSingleEvent");
 		hClearAllEvent = CreateEventW(NULL, FALSE, FALSE, L"ClearAllEvent");
 		hLockDeviceEvent = CreateEventW(NULL, FALSE, FALSE, L"LockDeviceEvent");
-		HANDLE hSerialThread = CreateThread(NULL, 0, SerialThread, &comPath, 0, NULL);
+
+		ScanForSerialDevices();
+
+		MSG msg = { 0 };
+
+		HANDLE hSerialThread = CreateThread(NULL, 0, SerialThread, NULL, 0, NULL);
 		// Initialize global strings
 		LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
 		LoadStringW(hInstance, IDC_GIPSERIAL, szWindowClass, MAX_LOADSTRING);
@@ -288,19 +280,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		}
 
 		HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_GIPSERIAL));
-
-		ScanForSerialDevices();
-		MSG msg;
-		HANDLE hSerial = NULL;
-		USHORT cmd = 0x00af;
-		if (comPath != L"")
-		{
-			hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_WRITE_THROUGH, NULL);
-			if (hSerial == INVALID_HANDLE_VALUE)
-			{
-				hSerial = NULL;
-			}
-		}
 
 		// Main message loop:
 		while (true)
@@ -315,10 +294,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 				TranslateMessage(&msg);
 				DispatchMessage(&msg);
 			}
-		}
-		if (hSerial)
-		{
-			CloseHandle(hSerial);
 		}
 		return (int)msg.wParam;
 	}
