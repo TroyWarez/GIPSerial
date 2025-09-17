@@ -146,25 +146,42 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 		{
 		case 1: // hSyncEvent
 		{
-			if (hSyncEvent)
+			if (hSyncEvent && dwWaitResult == 1)
 			{
 				ResetEvent(hSyncEvent);
+				cmd = RASPBERRY_PI_GIP_SYNC;
 			}
-			break;
 		}
 		case 2: // hClearSingleEvent
 		{
-			if (hClearSingleEvent)
+			if (hClearSingleEvent && dwWaitResult == 2)
 			{
 				ResetEvent(hClearSingleEvent);
+				cmd = RASPBERRY_PI_CLEAR_NEXT_SYNCED_CONTROLLER;
 			}
-			break;
 		}
 		case 3: // hClearAllEvent
 		{
-			if (hClearAllEvent)
+			if (hClearAllEvent && dwWaitResult == 3)
 			{
 				ResetEvent(hClearAllEvent);
+				cmd = RASPBERRY_PI_GIP_CLEAR;
+			}
+		}
+		case WAIT_TIMEOUT: {
+
+			if (hSerial)
+			{
+				if (!ReadFile(hSerial, &pwrStatus, sizeof(pwrStatus), NULL, NULL))
+				{
+					CloseHandle(hSerial);
+					hSerial = NULL;
+				}
+				else if (!WriteFile(hSerial, &cmd, sizeof(cmd), NULL, NULL))
+				{
+					CloseHandle(hSerial);
+					hSerial = NULL;
+				}
 			}
 			break;
 		}
@@ -230,22 +247,6 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 					SetCommState(hSerial, &dcb);
 				}
 			}
-		}
-		case WAIT_TIMEOUT: {
-			if (hSerial)
-			{
-				if (!ReadFile(hSerial, &pwrStatus, sizeof(pwrStatus), NULL, NULL))
-				{
-					CloseHandle(hSerial);
-					hSerial = NULL;
-				}
-				else if (!WriteFile(hSerial, &cmd, sizeof(cmd), NULL, NULL))
-				{
-					CloseHandle(hSerial);
-					hSerial = NULL;
-				}
-			}
-			break;
 		}
 		}
 	}
