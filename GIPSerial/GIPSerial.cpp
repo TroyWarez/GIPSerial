@@ -11,6 +11,7 @@
 #define IDM_EXIT 105
 #define IDM_SYNC 106
 #define IDM_CLEAR 107
+#define IDM_CLEAR_SINGLE 108
 
 
 #define APPWM_ICONNOTIFY (WM_APP + 1)
@@ -21,6 +22,7 @@
 #define RASPBERRY_PI_GIP_CLEAR 0x00b1
 #define RASPBERRY_PI_GIP_LOCK 0x00b2
 #define RASPBERRY_PI_SYNCED_CONTROLLER_COUNT 0x00b3
+#define RASPBERRY_PI_CLEAR_NEXT_SYNCED_CONTROLLER 0x00b4
 
 // Global Variables:
 HINSTANCE hInst;                                // current instance
@@ -303,6 +305,13 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    ShowWindow(hWnd, SW_HIDE);
    UpdateWindow(hWnd);
 
+   DEV_BROADCAST_DEVICEINTERFACE hidFilter = { };
+   hidFilter.dbcc_size = sizeof(DEV_BROADCAST_DEVICEINTERFACE);
+   hidFilter.dbcc_classguid = GUID_DEVINTERFACE_COMPORT;
+   hidFilter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
+   HDEVNOTIFY hDeviceHID = RegisterDeviceNotificationW(hWnd, &hidFilter, DEVICE_NOTIFY_WINDOW_HANDLE);
+
+
    AddNotificationIcon(hWnd);
 
    return TRUE;
@@ -330,6 +339,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			HMENU Hmenu = CreatePopupMenu();
 
 			AppendMenu(Hmenu, MF_STRING, IDM_CLEAR, L"Clear All Paired Controllers");
+			AppendMenu(Hmenu, MF_STRING, IDM_CLEAR_SINGLE, L"Clear a Single Paired Controller");
 			AppendMenu(Hmenu, MF_STRING, IDM_SYNC, L"Enable Pairing Mode");
 			AppendMenu(Hmenu, MF_STRING, IDM_EXIT, L"Close GIPSerial");
 			POINT p;
@@ -392,6 +402,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 			break;
 		}
+		case IDM_CLEAR_SINGLE:
 		case IDM_CLEAR:
 		{
 			int selection = MessageBoxW(hWnd, L"Warning: This option will attempt to unpair all synced controllers.\nClick ok to continue or click cancel to exit.", L"GIPSerial Warning", MB_OKCANCEL | MB_ICONWARNING);
@@ -427,6 +438,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 	}
 	break;
+	case WM_DEVICECHANGE:
+	{
+		DEV_BROADCAST_HDR* hdr = (DEV_BROADCAST_HDR*)lParam;
+		if (hdr && wParam == DBT_DEVNODES_CHANGED)
+		{
+			DEV_BROADCAST_DEVICEINTERFACE_W* pDevInf = (DEV_BROADCAST_DEVICEINTERFACE_W*)hdr;
+			if (pDevInf->dbcc_classguid == GUID_DEVINTERFACE_COMPORT)
+			{
+				ScanForSerialDevices();
+			}
+		}
+		break;
+	}
 	case WM_CREATE:
 	{
 		AddNotificationIcon(hWnd);
