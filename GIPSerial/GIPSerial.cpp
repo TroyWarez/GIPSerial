@@ -546,7 +546,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				return DefWindowProc(hWnd, message, wParam, lParam);
 			case IDOK:
 			{
-				if (hSyncEvent)
+				if (hSyncEvent && hFinshedSyncEvent)
 				{
 					ResetEvent(hSyncEvent);
 					SetEvent(hSyncEvent);
@@ -558,7 +558,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					{
 						MessageBox(hWnd, L"The Raspberry Pi ZeroW2 device did not find any new controllers to pair.", L"GIPSerial Error", MB_OK | MB_ICONINFORMATION);
 					}
-					CloseHandle(hShutdownEvent);
+					ResetEvent(hFinshedSyncEvent);
 				}
 			}
 			}
@@ -573,11 +573,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				return DefWindowProc(hWnd, message, wParam, lParam);
 			case IDOK:
 			{
-				if (hClearAllEvent)
+				if (hClearAllEvent && hFinshedClearSingleEvent)
 				{
 					ResetEvent(hClearAllEvent);
 					SetEvent(hClearAllEvent);
-					if (WaitForSingleObject(hFinshedClearAllEvent, MB_WAIT_TIMEOUT) == WAIT_OBJECT_0)
+					if (WaitForSingleObject(hFinshedClearSingleEvent, MB_WAIT_TIMEOUT) == WAIT_OBJECT_0)
 					{
 						MessageBox(hWnd, L"The controller was unpaired successfully.\nYou can now safety pair this controller to another device.\nTo pair again click the option \"Enable Pairing Mode\".", L"GIPSerial Important Information", MB_OK | MB_ICONINFORMATION);
 					}
@@ -585,6 +585,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					{
 						MessageBox(hWnd, L"The Raspberry Pi ZeroW2 device was unable to clear all paired controllers.\nTry restarting before trying again.", L"GIPSerial Error", MB_OK | MB_ICONWARNING);
 					}
+					ResetEvent(hFinshedClearSingleEvent);
 				}
 			}
 			}
@@ -599,7 +600,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				return DefWindowProc(hWnd, message, wParam, lParam);
 			case IDOK:
 			{
-				if (hClearAllEvent)
+				if (hClearAllEvent && hFinshedClearAllEvent)
 				{
 					ResetEvent(hClearAllEvent);
 					SetEvent(hClearAllEvent);
@@ -611,6 +612,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					{
 						MessageBox(hWnd, L"The Raspberry Pi ZeroW2 device was unable to clear a single paired controller.\nTry restarting before trying again.", L"GIPSerial Error", MB_OK | MB_ICONWARNING);
 					}
+					ResetEvent(hFinshedClearAllEvent);
 				}
 			}
 			}
