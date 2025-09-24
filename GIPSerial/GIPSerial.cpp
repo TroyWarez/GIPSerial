@@ -33,10 +33,19 @@ std::wstring comPath;
 std::wstring devicePort;
 
 static HANDLE hShutdownEvent = NULL;
+
 static HANDLE hSyncEvent = NULL;
+static HANDLE hFinshedSyncEvent = NULL;
+
 static HANDLE hClearSingleEvent = NULL;
+static HANDLE hFinshedClearSingleEvent = NULL;
+
 static HANDLE hClearAllEvent = NULL;
+static HANDLE hFinshedClearAllEvent = NULL;
+
 static HANDLE hLockDeviceEvent = NULL;
+static HANDLE hFinshedLockDeviceEvent = NULL;
+
 static HANDLE hNewDeviceEvent = NULL;
 
 // Forward declarations of functions included in this code module:
@@ -86,6 +95,16 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 		ResetEvent(hSyncEvent);
 	}
 
+	hFinshedSyncEvent = OpenEvent(SYNCHRONIZE, FALSE, L"FinshedSyncEvent");
+	if (hFinshedSyncEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
+	{
+		hFinshedSyncEvent = CreateEvent(NULL, FALSE, FALSE, L"FinshedSyncEvent");
+	}
+	if (hFinshedSyncEvent)
+	{
+		ResetEvent(hFinshedSyncEvent);
+	}
+
 	hClearSingleEvent = OpenEvent(SYNCHRONIZE, FALSE, L"ClearSingleEvent");
 	if (hClearSingleEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
 	{
@@ -94,6 +113,16 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 	if (hClearSingleEvent)
 	{
 		ResetEvent(hClearSingleEvent);
+	}
+
+	hFinshedClearSingleEvent = OpenEvent(SYNCHRONIZE, FALSE, L"FinshedClearSingleEvent");
+	if (hFinshedClearSingleEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
+	{
+		hFinshedClearSingleEvent = CreateEvent(NULL, FALSE, FALSE, L"FinshedClearSingleEvent");
+	}
+	if (hFinshedClearSingleEvent)
+	{
+		ResetEvent(hFinshedClearSingleEvent);
 	}
 
 	hClearAllEvent = OpenEvent(SYNCHRONIZE, FALSE, L"ClearAllEvent");
@@ -106,6 +135,16 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 		ResetEvent(hClearAllEvent);
 	}
 
+	hFinshedClearAllEvent = OpenEvent(SYNCHRONIZE, FALSE, L"FinshedClearAllEvent");
+	if (hFinshedClearAllEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
+	{
+		hFinshedClearAllEvent = CreateEvent(NULL, FALSE, FALSE, L"FinshedClearAllEvent");
+	}
+	if (hFinshedClearAllEvent)
+	{
+		ResetEvent(hFinshedClearAllEvent);
+	}
+
 	hLockDeviceEvent = OpenEvent(SYNCHRONIZE, FALSE, L"LockDeviceEvent");
 	if (hLockDeviceEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
 	{
@@ -114,6 +153,16 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 	if (hLockDeviceEvent)
 	{
 		ResetEvent(hLockDeviceEvent);
+	}
+
+	hFinshedLockDeviceEvent = OpenEvent(SYNCHRONIZE, FALSE, L"FinshedLockDeviceEvent");
+	if (hFinshedLockDeviceEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
+	{
+		hFinshedLockDeviceEvent = CreateEvent(NULL, FALSE, FALSE, L"FinshedLockDeviceEvent");
+	}
+	if (hFinshedLockDeviceEvent)
+	{
+		ResetEvent(hFinshedLockDeviceEvent);
 	}
 
 	hNewDeviceEvent = OpenEvent(SYNCHRONIZE, FALSE, L"NewDeviceEvent");
@@ -142,6 +191,7 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 	DWORD currentTime = 0;
 	DWORD endTime = 0;
 	dwWaitResult = WAIT_TIMEOUT;
+
 	while (dwWaitResult == WAIT_TIMEOUT) {
 		dwWaitResult = WaitForMultipleObjects((DWORD)hEvents.size(), hEvents.data(), FALSE, 1);
 		currentTime = timeGetTime();
@@ -171,66 +221,81 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 				cmd = RASPBERRY_PI_GIP_CLEAR;
 			}
 		}
-		case WAIT_TIMEOUT: {
-			if (hSerial)
-			{
-				if (!ReadFile(hSerial, &currentControllerCount, sizeof(currentControllerCount), NULL, NULL))
-				{
-					CloseHandle(hSerial);
-					hSerial = NULL;
-				}
-				else if (!WriteFile(hSerial, &cmd, sizeof(cmd), NULL, NULL))
-				{
-					CloseHandle(hSerial);
-					hSerial = NULL;
-				}
-
-				if ( dwWaitResult == 1 )
-				{
-					lastControllerCount = currentControllerCount;
-					DWORD endTime = timeGetTime();
-					endTime = endTime + 30000;
-					dwWaitResult = WAIT_TIMEOUT;
-				}
-				else if (currentControllerCount != lastControllerCount && currentControllerCount > 0)
-				{
-					if (hShutdownEvent)
-					{
-						SetEvent(hShutdownEvent);
-					}
-				}
-				else if (currentControllerCount == 0 && lastControllerCount != 0)
-				{
-					if (hShutdownEvent)
-					{
-						ResetEvent(hShutdownEvent);
-					}
-				}
-			}
-			break;
-		}
 		case 4: // hLockDeviceEvent
 		{
-			if (hLockDeviceEvent)
+			if (hLockDeviceEvent && dwWaitResult == 4)
 			{
 				ResetEvent(hLockDeviceEvent);
+				cmd = RASPBERRY_PI_GIP_LOCK;
 			}
-			cmd = RASPBERRY_PI_GIP_LOCK;
+		}
+		case WAIT_TIMEOUT: {
 			if (hSerial)
 			{
 				if (!WriteFile(hSerial, &cmd, sizeof(cmd), NULL, NULL))
 				{
 					CloseHandle(hSerial);
 					hSerial = NULL;
+					break;
 				}
-				else
+				if (!ReadFile(hSerial, &currentControllerCount, sizeof(currentControllerCount), NULL, NULL))
 				{
+					CloseHandle(hSerial);
+					hSerial = NULL;
+					break;
+				}
+
+				if (dwWaitResult == 1 ||
+					dwWaitResult == 2 || 
+					dwWaitResult == 3)
+				{
+					lastControllerCount = currentControllerCount;
+					endTime = timeGetTime();
+					endTime = endTime + 30000;
+					dwWaitResult = WAIT_TIMEOUT;
+				}
+
+				if ( endTime < currentTime && endTime != 0)
+				{
+					cmd = RASPBERRY_PI_GIP_POLL;
+					endTime = 0;
+				}
+
+				if (currentControllerCount > lastControllerCount && cmd == RASPBERRY_PI_GIP_SYNC)
+				{
+					if (hFinshedSyncEvent)
+					{
+						SetEvent(hFinshedSyncEvent);
+					}
+				}
+				if (currentControllerCount < lastControllerCount && cmd == RASPBERRY_PI_CLEAR_NEXT_SYNCED_CONTROLLER)
+				{
+					if (hFinshedClearSingleEvent)
+					{
+						SetEvent(hFinshedClearSingleEvent);
+					}
+				}
+				else if (currentControllerCount == 0 && cmd == RASPBERRY_PI_GIP_CLEAR)
+				{
+					if (hFinshedClearAllEvent)
+					{
+						SetEvent(hFinshedClearAllEvent);
+					}
+				}
+
+				if (cmd == RASPBERRY_PI_GIP_LOCK)
+				{
+					if (hFinshedLockDeviceEvent)
+					{
+						SetEvent(hFinshedLockDeviceEvent);
+					}
 					if (hShutdownEvent)
 					{
 						SetEvent(hShutdownEvent);
 					}
 				}
 			}
+			break;
 		}
 		case 0: // hShutdownEvent
 		{
@@ -271,10 +336,11 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 					SetCommState(hSerial, &dcb);
 				}
 			}
+			break;
 		}
 		}
 	}
-	return 0;
+	return 1;
 }
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
@@ -298,10 +364,19 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	case ERROR_SUCCESS:
 	{
 		hShutdownEvent = CreateEvent(NULL, FALSE, FALSE, L"ShutdownEvent");
+
+
 		hSyncEvent = CreateEvent(NULL, FALSE, FALSE, L"SyncEvent");
+		hFinshedSyncEvent = CreateEvent(NULL, FALSE, FALSE, L"FinshedSyncEvent");
+
 		hClearSingleEvent = CreateEvent(NULL, FALSE, FALSE, L"ClearSingleEvent");
+		hFinshedClearSingleEvent = CreateEvent(NULL, FALSE, FALSE, L"FinshedClearSingleEvent");
+
 		hClearAllEvent = CreateEvent(NULL, FALSE, FALSE, L"ClearAllEvent");
+		hFinshedClearAllEvent = CreateEvent(NULL, FALSE, FALSE, L"FinshedClearAllEvent");
+
 		hLockDeviceEvent = CreateEvent(NULL, FALSE, FALSE, L"LockDeviceEvent");
+		hFinshedLockDeviceEvent = CreateEvent(NULL, FALSE, FALSE, L"FinshedLockDeviceEvent");
 
 		ScanForSerialDevices();
 
@@ -425,8 +500,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		switch (lParam)
 		{
 		case WM_LBUTTONUP:
+		case WM_RBUTTONUP:
 			HMENU Hmenu = CreatePopupMenu();
-
 			AppendMenu(Hmenu, MF_STRING, IDM_CLEAR, L"Clear All Paired Controllers");
 			AppendMenu(Hmenu, MF_STRING, IDM_CLEAR_SINGLE, L"Clear a Single Paired Controller");
 			AppendMenu(Hmenu, MF_STRING, IDM_SYNC, L"Enable Pairing Mode");
@@ -462,7 +537,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			break;
 		case IDM_SYNC:
 		{
-			int selection = MessageBox(hWnd, L"Enable paring mode for the Raspberry Pi ZeroW2 device?Another message box window will appear to indicate if a controller was paired or not.\nClick ok to continue or click cancel to exit.", L"GIPSerial", MB_OKCANCEL | MB_ICONQUESTION);
+			int selection = MessageBox(hWnd, L"Enable paring mode for the Raspberry Pi ZeroW2 device?\nAnother message box window will appear to indicate if a controller was paired or not.\nClick ok to continue or click cancel to exit.", L"GIPSerial", MB_OKCANCEL | MB_ICONQUESTION);
 			switch (selection)
 			{
 			case IDCANCEL:
@@ -553,8 +628,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		break;
 	}
     case WM_DESTROY:
-        PostQuitMessage(0);
-        break;
+	{
+		if (hShutdownEvent)
+		{
+			SetEvent(hShutdownEvent);
+		}
+		PostQuitMessage(0);
+		break;
+	}
     default:
         return DefWindowProc(hWnd, message, wParam, lParam);
     }
