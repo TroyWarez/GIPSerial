@@ -128,6 +128,7 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 	UCHAR currentControllerCount = 0;
 	UCHAR lastControllerCount = 0;
 	int cmd = RASPBERRY_PI_GIP_POLL;
+	int pwrStatus = 0xaf;
 	DWORD dwWaitResult = 0;
 	DWORD currentTime = 0;
 	DWORD endTime = 0;
@@ -195,7 +196,8 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 					hSerial = NULL;
 					break;
 				}
-				if (!ReadFile(hSerial, &currentControllerCount, sizeof(currentControllerCount), NULL, NULL))
+				if (cmd == RASPBERRY_PI_GIP_POLL && !ReadFile(hSerial, &pwrStatus, sizeof(pwrStatus), NULL, NULL) ||
+					cmd != RASPBERRY_PI_GIP_POLL && !ReadFile(hSerial, &currentControllerCount, sizeof(currentControllerCount), NULL, NULL))
 				{
 					CloseHandle(hSerial);
 					hSerial = NULL;
@@ -207,6 +209,7 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 					if (hFinshedSyncEvent)
 					{
 						SetEvent(hFinshedSyncEvent);
+						cmd = RASPBERRY_PI_GIP_POLL;
 					}
 				}
 				if (currentControllerCount < lastControllerCount && cmd == RASPBERRY_PI_CLEAR_NEXT_SYNCED_CONTROLLER)
@@ -214,6 +217,7 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 					if (hFinshedClearSingleEvent)
 					{
 						SetEvent(hFinshedClearSingleEvent);
+						cmd = RASPBERRY_PI_GIP_POLL;
 					}
 				}
 				else if (currentControllerCount == 0 && cmd == RASPBERRY_PI_GIP_CLEAR)
@@ -221,6 +225,7 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 					if (hFinshedClearAllEvent)
 					{
 						SetEvent(hFinshedClearAllEvent);
+						cmd = RASPBERRY_PI_GIP_POLL;
 					}
 				}
 
@@ -229,10 +234,12 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 					if (hFinshedLockDeviceEvent)
 					{
 						SetEvent(hFinshedLockDeviceEvent);
+						cmd = RASPBERRY_PI_GIP_POLL;
 					}
 					if (lpHandles[0])
 					{
 						SetEvent(lpHandles[0]);
+						cmd = RASPBERRY_PI_GIP_POLL;
 					}
 				}
 			}
@@ -280,6 +287,7 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 			break;
 		}
 		}
+		dwWaitResult = WAIT_TIMEOUT;
 	}
 	return 1;
 }
