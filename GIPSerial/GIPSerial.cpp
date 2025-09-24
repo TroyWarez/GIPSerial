@@ -637,10 +637,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	}
     case WM_DESTROY:
 	{
-		if (hShutdownEvent)
-		{
-			SetEvent(hShutdownEvent);
-		}
 		PostQuitMessage(0);
 		break;
 	}
