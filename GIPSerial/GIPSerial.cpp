@@ -520,6 +520,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		switch (wmId)
 		{
 		case IDM_EXIT:
+		{
 			if (hLockDeviceEvent)
 			{
 				SetEvent(hLockDeviceEvent);
@@ -535,6 +536,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			DestroyWindow(hWnd);
 			PostQuitMessage(0);
 			break;
+		}
 		case IDM_SYNC:
 		{
 			int selection = MessageBox(hWnd, L"Enable paring mode for the Raspberry Pi ZeroW2 device?\nAnother message box window will appear to indicate if a controller was paired or not.\nClick ok to continue or click cancel to exit.", L"GIPSerial", MB_OKCANCEL | MB_ICONQUESTION);
@@ -612,6 +614,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				}
 			}
 			}
+		}
 			break;
 		}
 	}
