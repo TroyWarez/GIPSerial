@@ -12,17 +12,17 @@
 #define IDM_SYNC 106
 #define IDM_CLEAR 107
 #define IDM_CLEAR_SINGLE 108
-
+#define NBOFEVENTS 6
 
 #define APPWM_ICONNOTIFY (WM_APP + 1)
 
 // GIP Commands
-#define RASPBERRY_PI_GIP_POLL 0x00af
-#define RASPBERRY_PI_GIP_SYNC 0x00b0
-#define RASPBERRY_PI_GIP_CLEAR 0x00b1
-#define RASPBERRY_PI_GIP_LOCK 0x00b2
-#define RASPBERRY_PI_SYNCED_CONTROLLER_COUNT 0x00b3
-#define RASPBERRY_PI_CLEAR_NEXT_SYNCED_CONTROLLER 0x00b4
+#define RASPBERRY_PI_GIP_POLL 0xaf
+#define RASPBERRY_PI_GIP_SYNC 0xb0
+#define RASPBERRY_PI_GIP_CLEAR 0xb1
+#define RASPBERRY_PI_GIP_LOCK 0xb2
+#define RASPBERRY_PI_SYNCED_CONTROLLER_COUNT 0xb3
+#define RASPBERRY_PI_CLEAR_NEXT_SYNCED_CONTROLLER 0xb4
 
 // Global Variables:
 HINSTANCE hInst;                                // current instance
@@ -31,22 +31,6 @@ WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 std::wstring devicePath;
 std::wstring comPath;
 std::wstring devicePort;
-
-static HANDLE hShutdownEvent = NULL;
-
-static HANDLE hSyncEvent = NULL;
-static HANDLE hFinshedSyncEvent = NULL;
-
-static HANDLE hClearSingleEvent = NULL;
-static HANDLE hFinshedClearSingleEvent = NULL;
-
-static HANDLE hClearAllEvent = NULL;
-static HANDLE hFinshedClearAllEvent = NULL;
-
-static HANDLE hLockDeviceEvent = NULL;
-static HANDLE hFinshedLockDeviceEvent = NULL;
-
-static HANDLE hNewDeviceEvent = NULL;
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -60,8 +44,10 @@ BOOL                AddNotificationIcon(HWND hwnd);
 DWORD WINAPI SerialThread(LPVOID lpParam) {
 
 	UNREFERENCED_PARAMETER(lpParam);
+	ScanForSerialDevices();
+	HANDLE lpHandles[NBOFEVENTS] = { NULL };
 
-	HANDLE hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_WRITE_THROUGH, NULL);
+	HANDLE hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, NULL, NULL);
 	if (hSerial == INVALID_HANDLE_VALUE)
 	{
 		hSerial = NULL;
@@ -75,27 +61,19 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 		SetCommState(hSerial, &dcb);
 	}
 
-	hShutdownEvent = OpenEvent(SYNCHRONIZE, FALSE, L"ShutdownEvent");
-	if (hShutdownEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
+	lpHandles[0] = OpenEvent( SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, L"ShutdownEvent");
+	if (lpHandles[0] == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
 	{
-		hShutdownEvent = CreateEvent(NULL, FALSE, FALSE, L"ShutdownEvent");
-	}
-	if (hShutdownEvent)
-	{
-		ResetEvent(hShutdownEvent);
+		lpHandles[0] = CreateEvent(NULL, FALSE, FALSE, L"ShutdownEvent");
 	}
 
-	hSyncEvent = OpenEvent(SYNCHRONIZE, FALSE, L"SyncEvent");
-	if (hSyncEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
+	lpHandles[1] = OpenEvent( SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, L"SyncEvent");
+	if (lpHandles[1] == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
 	{
-		hSyncEvent = CreateEvent(NULL, FALSE, FALSE, L"SyncEvent");
-	}
-	if (hSyncEvent)
-	{
-		ResetEvent(hSyncEvent);
+		lpHandles[1] = CreateEvent(NULL, FALSE, FALSE, L"SyncEvent");
 	}
 
-	hFinshedSyncEvent = OpenEvent(SYNCHRONIZE, FALSE, L"FinshedSyncEvent");
+	HANDLE hFinshedSyncEvent = OpenEvent(EVENT_MODIFY_STATE, FALSE, L"FinshedSyncEvent");
 	if (hFinshedSyncEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
 	{
 		hFinshedSyncEvent = CreateEvent(NULL, FALSE, FALSE, L"FinshedSyncEvent");
@@ -105,127 +83,90 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 		ResetEvent(hFinshedSyncEvent);
 	}
 
-	hClearSingleEvent = OpenEvent(SYNCHRONIZE, FALSE, L"ClearSingleEvent");
-	if (hClearSingleEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
+	lpHandles[2] = OpenEvent( SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, L"ClearSingleEvent");
+	if (lpHandles[2] == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
 	{
-		hClearSingleEvent = CreateEvent(NULL, FALSE, FALSE, L"ClearSingleEvent");
-	}
-	if (hClearSingleEvent)
-	{
-		ResetEvent(hClearSingleEvent);
+		lpHandles[2] = CreateEvent(NULL, FALSE, FALSE, L"ClearSingleEvent");
 	}
 
-	hFinshedClearSingleEvent = OpenEvent(SYNCHRONIZE, FALSE, L"FinshedClearSingleEvent");
+	HANDLE hFinshedClearSingleEvent = OpenEvent(EVENT_MODIFY_STATE, FALSE, L"FinshedClearSingleEvent");
 	if (hFinshedClearSingleEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
 	{
 		hFinshedClearSingleEvent = CreateEvent(NULL, FALSE, FALSE, L"FinshedClearSingleEvent");
 	}
-	if (hFinshedClearSingleEvent)
+
+	lpHandles[3] = OpenEvent( SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, L"ClearAllEvent");
+	if (lpHandles[3] == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
 	{
-		ResetEvent(hFinshedClearSingleEvent);
+		lpHandles[3] = CreateEventW(NULL, FALSE, FALSE, L"ClearAllEvent");
 	}
 
-	hClearAllEvent = OpenEvent(SYNCHRONIZE, FALSE, L"ClearAllEvent");
-	if (hClearAllEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
-	{
-		hClearAllEvent = CreateEvent(NULL, FALSE, FALSE, L"ClearAllEvent");
-	}
-	if (hClearAllEvent)
-	{
-		ResetEvent(hClearAllEvent);
-	}
-
-	hFinshedClearAllEvent = OpenEvent(SYNCHRONIZE, FALSE, L"FinshedClearAllEvent");
+	HANDLE hFinshedClearAllEvent = OpenEvent(EVENT_MODIFY_STATE, FALSE, L"FinshedClearAllEvent");
 	if (hFinshedClearAllEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
 	{
 		hFinshedClearAllEvent = CreateEvent(NULL, FALSE, FALSE, L"FinshedClearAllEvent");
 	}
-	if (hFinshedClearAllEvent)
+
+	lpHandles[4] = OpenEvent( SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, L"LockDeviceEvent");
+	if (lpHandles[4] == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
 	{
-		ResetEvent(hFinshedClearAllEvent);
+		lpHandles[4] = CreateEvent(NULL, FALSE, FALSE, L"LockDeviceEvent");
 	}
 
-	hLockDeviceEvent = OpenEvent(SYNCHRONIZE, FALSE, L"LockDeviceEvent");
-	if (hLockDeviceEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
-	{
-		hLockDeviceEvent = CreateEvent(NULL, FALSE, FALSE, L"LockDeviceEvent");
-	}
-	if (hLockDeviceEvent)
-	{
-		ResetEvent(hLockDeviceEvent);
-	}
-
-	hFinshedLockDeviceEvent = OpenEvent(SYNCHRONIZE, FALSE, L"FinshedLockDeviceEvent");
+	HANDLE hFinshedLockDeviceEvent = OpenEvent(EVENT_MODIFY_STATE, FALSE, L"FinshedLockDeviceEvent");
 	if (hFinshedLockDeviceEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
 	{
 		hFinshedLockDeviceEvent = CreateEvent(NULL, FALSE, FALSE, L"FinshedLockDeviceEvent");
 	}
-	if (hFinshedLockDeviceEvent)
-	{
-		ResetEvent(hFinshedLockDeviceEvent);
-	}
 
-	hNewDeviceEvent = OpenEvent(SYNCHRONIZE, FALSE, L"NewDeviceEvent");
-	if (hNewDeviceEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
+	lpHandles[5] = OpenEvent( SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, L"NewDeviceEvent");
+	if (lpHandles[5] == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
 	{
-		hNewDeviceEvent = CreateEvent(NULL, FALSE, FALSE, L"NewDeviceEvent");
+		lpHandles[5] = CreateEvent(NULL, FALSE, FALSE, L"NewDeviceEvent");
 	}
-	if (hNewDeviceEvent)
-	{
-		ResetEvent(hNewDeviceEvent);
-	}
-
-	std::vector<HANDLE> hEvents;
-
-	hEvents.push_back(hShutdownEvent);
-	hEvents.push_back(hSyncEvent);
-	hEvents.push_back(hClearSingleEvent);
-	hEvents.push_back(hClearAllEvent);
-	hEvents.push_back(hLockDeviceEvent);
-	hEvents.push_back(hNewDeviceEvent);
 
 	UCHAR currentControllerCount = 0;
 	UCHAR lastControllerCount = 0;
-	USHORT cmd = RASPBERRY_PI_GIP_POLL;
+	int cmd = RASPBERRY_PI_GIP_POLL;
 	DWORD dwWaitResult = 0;
 	DWORD currentTime = 0;
 	DWORD endTime = 0;
 	dwWaitResult = WAIT_TIMEOUT;
 
 	while (dwWaitResult == WAIT_TIMEOUT) {
-		dwWaitResult = WaitForMultipleObjects((DWORD)hEvents.size(), hEvents.data(), FALSE, 1);
+		dwWaitResult = WaitForMultipleObjects(ARRAYSIZE(lpHandles), lpHandles, FALSE, 1);
 		currentTime = timeGetTime();
 		switch (dwWaitResult)
 		{
 		case 1: // hSyncEvent
 		{
-			if (hSyncEvent && dwWaitResult == 1) // check current time
+			if (lpHandles[1] && dwWaitResult == 1)
 			{
-				ResetEvent(hSyncEvent);
+				ResetEvent(lpHandles[1]);
 				cmd = RASPBERRY_PI_GIP_SYNC;
 			}
 		}
 		case 2: // hClearSingleEvent
 		{
-			if (hClearSingleEvent && dwWaitResult == 2)
+			if (lpHandles[2] && dwWaitResult == 2)
 			{
-				ResetEvent(hClearSingleEvent);
+				ResetEvent(lpHandles[2]);
 				cmd = RASPBERRY_PI_CLEAR_NEXT_SYNCED_CONTROLLER;
 			}
 		}
 		case 3: // hClearAllEvent
 		{
-			if (hClearAllEvent && dwWaitResult == 3)
+			if (lpHandles[3] && dwWaitResult == 3)
 			{
-				ResetEvent(hClearAllEvent);
+				ResetEvent(lpHandles[3]);
 				cmd = RASPBERRY_PI_GIP_CLEAR;
 			}
 		}
 		case 4: // hLockDeviceEvent
 		{
-			if (hLockDeviceEvent && dwWaitResult == 4)
+			if (lpHandles[4] && dwWaitResult == 4)
 			{
-				ResetEvent(hLockDeviceEvent);
+				ResetEvent(lpHandles[4]);
 				cmd = RASPBERRY_PI_GIP_LOCK;
 			}
 		}
@@ -289,9 +230,9 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 					{
 						SetEvent(hFinshedLockDeviceEvent);
 					}
-					if (hShutdownEvent)
+					if (lpHandles[0])
 					{
-						SetEvent(hShutdownEvent);
+						SetEvent(lpHandles[0]);
 					}
 				}
 			}
@@ -299,11 +240,11 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 		}
 		case 0: // hShutdownEvent
 		{
-			for (size_t i = 0; i < hEvents.size(); i++)
+			for (size_t i = 0; i < ARRAYSIZE(lpHandles); i++)
 			{
-				if (hEvents[i] != NULL)
+				if (lpHandles[i] != NULL)
 				{
-					CloseHandle(hEvents[i]);
+					CloseHandle(lpHandles[i]);
 				}
 			}
 			if (hSerial)
@@ -315,14 +256,14 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 		}
 		case 5: // hNewDeviceEvent
 		{
-			if (hNewDeviceEvent)
+			if (lpHandles[5])
 			{
-				ResetEvent(hNewDeviceEvent);
+				ResetEvent(lpHandles[5]);
 			}
 			ScanForSerialDevices();
 			if (comPath != L"")
 			{
-				hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_WRITE_THROUGH, NULL);
+				hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, NULL, NULL);
 				if (hSerial == INVALID_HANDLE_VALUE)
 				{
 					hSerial = NULL;
@@ -363,23 +304,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	case ERROR_SUCCESS:
 	{
-		hShutdownEvent = CreateEvent(NULL, FALSE, FALSE, L"ShutdownEvent");
-
-
-		hSyncEvent = CreateEvent(NULL, FALSE, FALSE, L"SyncEvent");
-		hFinshedSyncEvent = CreateEvent(NULL, FALSE, FALSE, L"FinshedSyncEvent");
-
-		hClearSingleEvent = CreateEvent(NULL, FALSE, FALSE, L"ClearSingleEvent");
-		hFinshedClearSingleEvent = CreateEvent(NULL, FALSE, FALSE, L"FinshedClearSingleEvent");
-
-		hClearAllEvent = CreateEvent(NULL, FALSE, FALSE, L"ClearAllEvent");
-		hFinshedClearAllEvent = CreateEvent(NULL, FALSE, FALSE, L"FinshedClearAllEvent");
-
-		hLockDeviceEvent = CreateEvent(NULL, FALSE, FALSE, L"LockDeviceEvent");
-		hFinshedLockDeviceEvent = CreateEvent(NULL, FALSE, FALSE, L"FinshedLockDeviceEvent");
-
-		ScanForSerialDevices();
-
 		MSG msg = { 0 };
 
 		HANDLE hSerialThread = CreateThread(NULL, 0, SerialThread, NULL, 0, NULL);
@@ -409,6 +333,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 				TranslateMessage(&msg);
 				DispatchMessage(&msg);
 			}
+			Sleep(1);
 		}
 		return (int)msg.wParam;
 	}
@@ -521,6 +446,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		{
 		case IDM_EXIT:
 		{
+			HANDLE hLockDeviceEvent = OpenEvent(EVENT_MODIFY_STATE, FALSE, L"LockDeviceEvent");
+			HANDLE hShutdownEvent = OpenEvent(EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, L"ShutdownEvent");
 			if (hLockDeviceEvent)
 			{
 				SetEvent(hLockDeviceEvent);
@@ -532,6 +459,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				{
 					MessageBox(hWnd, L"The device may be unlocked and could power down the current computer unexpectedly when a paired controlled is used.\n\nRun GIPSerial again to fix this.\n\nDo not run GIPSerial unless you have the required Raspberry Pi ZeroW2 serial device connected to your computer.", L"GIPSerial Error", MB_OK | MB_ICONERROR);
 				}
+			}
+			if (hLockDeviceEvent)
+			{
+				CloseHandle(hLockDeviceEvent);
+			}
+			if (hShutdownEvent)
+			{
+				CloseHandle(hShutdownEvent);
 			}
 			DestroyWindow(hWnd);
 			PostQuitMessage(0);
@@ -546,9 +481,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				return DefWindowProc(hWnd, message, wParam, lParam);
 			case IDOK:
 			{
+				HANDLE hSyncEvent = OpenEvent(EVENT_MODIFY_STATE, FALSE, L"SyncEvent");
+				HANDLE hFinshedSyncEvent = OpenEvent(EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, L"FinshedSyncEvent");
 				if (hSyncEvent && hFinshedSyncEvent)
 				{
-					ResetEvent(hSyncEvent);
 					SetEvent(hSyncEvent);
 					if (WaitForSingleObject(hFinshedSyncEvent, MB_WAIT_TIMEOUT) == WAIT_OBJECT_0)
 					{
@@ -559,6 +495,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 						MessageBox(hWnd, L"The Raspberry Pi ZeroW2 device did not find any new controllers to pair.", L"GIPSerial Error", MB_OK | MB_ICONINFORMATION);
 					}
 					ResetEvent(hFinshedSyncEvent);
+				}
+				if (hSyncEvent)
+				{
+					CloseHandle(hSyncEvent);
+				}
+				if (hFinshedSyncEvent)
+				{
+					CloseHandle(hFinshedSyncEvent);
 				}
 			}
 			}
@@ -573,10 +517,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				return DefWindowProc(hWnd, message, wParam, lParam);
 			case IDOK:
 			{
-				if (hClearAllEvent && hFinshedClearSingleEvent)
+				HANDLE hClearSingleEvent = OpenEvent(EVENT_MODIFY_STATE, FALSE, L"ClearSingleEvent");
+				HANDLE hFinshedClearSingleEvent = OpenEvent(EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, L"FinshedClearSingleEvent");
+				if (hClearSingleEvent && hFinshedClearSingleEvent)
 				{
-					ResetEvent(hClearAllEvent);
-					SetEvent(hClearAllEvent);
+					SetEvent(hClearSingleEvent);
 					if (WaitForSingleObject(hFinshedClearSingleEvent, MB_WAIT_TIMEOUT) == WAIT_OBJECT_0)
 					{
 						MessageBox(hWnd, L"The controller was unpaired successfully.\nYou can now safety pair this controller to another device.\nTo pair again click the option \"Enable Pairing Mode\".", L"GIPSerial Important Information", MB_OK | MB_ICONINFORMATION);
@@ -586,6 +531,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 						MessageBox(hWnd, L"The Raspberry Pi ZeroW2 device was unable to clear all paired controllers.\nTry restarting before trying again.", L"GIPSerial Error", MB_OK | MB_ICONWARNING);
 					}
 					ResetEvent(hFinshedClearSingleEvent);
+				}
+				if (hClearSingleEvent)
+				{
+					CloseHandle(hClearSingleEvent);
+				}
+				if (hFinshedClearSingleEvent)
+				{
+					CloseHandle(hFinshedClearSingleEvent);
 				}
 			}
 			}
@@ -600,6 +553,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				return DefWindowProc(hWnd, message, wParam, lParam);
 			case IDOK:
 			{
+				HANDLE hClearAllEvent = OpenEvent(EVENT_MODIFY_STATE, FALSE, L"ClearAllEvent");
+				HANDLE hFinshedClearAllEvent = OpenEvent(EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, L"FinshedClearAllEvent");
 				if (hClearAllEvent && hFinshedClearAllEvent)
 				{
 					ResetEvent(hClearAllEvent);
@@ -614,6 +569,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					}
 					ResetEvent(hFinshedClearAllEvent);
 				}
+				if (hClearAllEvent)
+				{
+					CloseHandle(hClearAllEvent);
+				}
+				if (hFinshedClearAllEvent)
+				{
+					CloseHandle(hFinshedClearAllEvent);
+				}
 			}
 			}
 			break;
@@ -623,8 +586,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	break;
 	case WM_DEVICECHANGE:
 	{
+		HANDLE hNewDeviceEvent = OpenEvent(EVENT_MODIFY_STATE, FALSE, L"NewDeviceEvent");
 
-		if ( wParam == DBT_DEVNODES_CHANGED && WaitForSingleObject(hNewDeviceEvent, 1) != WAIT_OBJECT_0)
+		if (hNewDeviceEvent && wParam == DBT_DEVNODES_CHANGED && WaitForSingleObject(hNewDeviceEvent, 1) != WAIT_OBJECT_0)
 		{
 			SetEvent(hNewDeviceEvent);
 		}
