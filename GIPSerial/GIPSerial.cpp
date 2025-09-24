@@ -196,8 +196,14 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 					hSerial = NULL;
 					break;
 				}
-				if (cmd == RASPBERRY_PI_GIP_POLL && !ReadFile(hSerial, &pwrStatus, sizeof(pwrStatus), NULL, NULL) ||
-					cmd != RASPBERRY_PI_GIP_POLL && !ReadFile(hSerial, &currentControllerCount, sizeof(currentControllerCount), NULL, NULL))
+
+				if (cmd == RASPBERRY_PI_GIP_POLL && !ReadFile(hSerial, &pwrStatus, sizeof(pwrStatus), NULL, NULL))
+				{
+					CloseHandle(hSerial);
+					hSerial = NULL;
+					break;
+				}
+				else if (cmd != RASPBERRY_PI_GIP_POLL && !ReadFile(hSerial, &currentControllerCount, sizeof(currentControllerCount), NULL, NULL))
 				{
 					CloseHandle(hSerial);
 					hSerial = NULL;
