@@ -31,7 +31,8 @@ WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 std::wstring devicePath;
 std::wstring comPath;
 std::wstring devicePort;
-
+static int controllerCount = 0;
+std::wstring controllerCountWStr;
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
@@ -125,8 +126,7 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 		lpHandles[5] = CreateEvent(NULL, FALSE, FALSE, L"NewDeviceEvent");
 	}
 
-	UCHAR currentControllerCount = 0;
-	UCHAR lastControllerCount = 0;
+	int lastControllerCount = 0;
 	int cmd = RASPBERRY_PI_GIP_POLL;
 	int pwrStatus = 0xaf;
 	DWORD dwWaitResult = 0;
@@ -178,7 +178,7 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 					dwWaitResult == 2 ||
 					dwWaitResult == 3)
 				{
-					lastControllerCount = currentControllerCount;
+					lastControllerCount = controllerCount;
 					endTime = timeGetTime();
 					endTime = endTime + 30000;
 					dwWaitResult = WAIT_TIMEOUT;
@@ -197,20 +197,20 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 					break;
 				}
 
-				if (cmd == RASPBERRY_PI_GIP_POLL && !ReadFile(hSerial, &pwrStatus, sizeof(pwrStatus), NULL, NULL))
+				if (cmd != RASPBERRY_PI_GIP_POLL && !ReadFile(hSerial, &pwrStatus, sizeof(pwrStatus), NULL, NULL))
 				{
 					CloseHandle(hSerial);
 					hSerial = NULL;
 					break;
 				}
-				else if (cmd != RASPBERRY_PI_GIP_POLL && !ReadFile(hSerial, &currentControllerCount, sizeof(currentControllerCount), NULL, NULL))
+				else if (cmd == RASPBERRY_PI_GIP_POLL && !ReadFile(hSerial, &controllerCount, sizeof(controllerCount), NULL, NULL))
 				{
 					CloseHandle(hSerial);
 					hSerial = NULL;
 					break;
 				}
 
-				if (currentControllerCount > lastControllerCount && cmd == RASPBERRY_PI_GIP_SYNC)
+				if (controllerCount > lastControllerCount && cmd == RASPBERRY_PI_GIP_SYNC)
 				{
 					if (hFinshedSyncEvent)
 					{
@@ -218,7 +218,7 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 						cmd = RASPBERRY_PI_GIP_POLL;
 					}
 				}
-				if (currentControllerCount < lastControllerCount && cmd == RASPBERRY_PI_CLEAR_NEXT_SYNCED_CONTROLLER)
+				if (controllerCount < lastControllerCount && cmd == RASPBERRY_PI_CLEAR_NEXT_SYNCED_CONTROLLER)
 				{
 					if (hFinshedClearSingleEvent)
 					{
@@ -226,7 +226,7 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 						cmd = RASPBERRY_PI_GIP_POLL;
 					}
 				}
-				else if (currentControllerCount == 0 && cmd == RASPBERRY_PI_GIP_CLEAR)
+				else if (controllerCount == 0 && cmd == RASPBERRY_PI_GIP_CLEAR)
 				{
 					if (hFinshedClearAllEvent)
 					{
@@ -441,9 +441,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		case WM_LBUTTONUP:
 		case WM_RBUTTONUP:
 			HMENU Hmenu = CreatePopupMenu();
-			AppendMenu(Hmenu, MF_STRING, IDM_CLEAR, L"Clear All Paired Controllers");
-			AppendMenu(Hmenu, MF_STRING, IDM_CLEAR_SINGLE, L"Clear a Single Paired Controller");
-			AppendMenu(Hmenu, MF_STRING, IDM_SYNC, L"Enable Pairing Mode");
+			if (controllerCount)
+			{
+				controllerCountWStr = L"Enable Pairing Mode: (" + std::to_wstring(controllerCount) + L") controllers paired.";
+				AppendMenu(Hmenu, MF_STRING, IDM_CLEAR, L"Clear All Paired Controllers");
+				AppendMenu(Hmenu, MF_STRING, IDM_CLEAR_SINGLE, L"Clear a Single Paired Controller");
+			}
+			else
+			{
+				controllerCountWStr = L"Enable Pairing Mode: (0) controllers paired.";
+			}
+			AppendMenu(Hmenu, MF_STRING, IDM_SYNC, controllerCountWStr.c_str());
 			AppendMenu(Hmenu, MF_STRING, IDM_EXIT, L"Close GIPSerial");
 			POINT p;
 			GetCursorPos(&p);
