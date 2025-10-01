@@ -48,7 +48,7 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 	ScanForSerialDevices();
 	HANDLE lpHandles[NBOFEVENTS] = { NULL };
 
-	HANDLE hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, NULL, NULL);
+	HANDLE hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_WRITE_FLAGS_WRITE_THROUGH, NULL);
 	if (hSerial == INVALID_HANDLE_VALUE)
 	{
 		hSerial = NULL;
@@ -135,7 +135,7 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 	dwWaitResult = WAIT_TIMEOUT;
 
 	while (dwWaitResult == WAIT_TIMEOUT) {
-		dwWaitResult = WaitForMultipleObjects(ARRAYSIZE(lpHandles), lpHandles, FALSE, 1);
+		dwWaitResult = WaitForMultipleObjects(ARRAYSIZE(lpHandles), lpHandles, FALSE, 50);
 		currentTime = timeGetTime();
 		switch (dwWaitResult)
 		{
@@ -194,19 +194,30 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 				{
 					CloseHandle(hSerial);
 					hSerial = NULL;
+					if (lpHandles[5])
+					{
+						SetEvent(lpHandles[5]);
+					}
 					break;
 				}
-
 				if (cmd != RASPBERRY_PI_GIP_POLL && !ReadFile(hSerial, &pwrStatus, sizeof(pwrStatus), NULL, NULL))
 				{
 					CloseHandle(hSerial);
 					hSerial = NULL;
+					if (lpHandles[5])
+					{
+						SetEvent(lpHandles[5]);
+					}
 					break;
 				}
 				else if (cmd == RASPBERRY_PI_GIP_POLL && !ReadFile(hSerial, &controllerCount, sizeof(controllerCount), NULL, NULL))
 				{
 					CloseHandle(hSerial);
 					hSerial = NULL;
+					if (lpHandles[5])
+					{
+						SetEvent(lpHandles[5]);
+					}
 					break;
 				}
 
@@ -443,7 +454,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			HMENU Hmenu = CreatePopupMenu();
 			if (controllerCount)
 			{
-				controllerCountWStr = L"Enable Pairing Mode: (" + std::to_wstring(controllerCount) + L") controllers paired.";
+				if (controllerCount == 1)
+				{
+					controllerCountWStr = L"Enable Pairing Mode: (1) controller paired.";
+				}
+				else
+				{
+					controllerCountWStr = L"Enable Pairing Mode: (" + std::to_wstring(controllerCount) + L") controllers paired.";
+				}
 				AppendMenu(Hmenu, MF_STRING, IDM_CLEAR, L"Clear All Paired Controllers");
 				AppendMenu(Hmenu, MF_STRING, IDM_CLEAR_SINGLE, L"Clear a Single Paired Controller");
 			}
