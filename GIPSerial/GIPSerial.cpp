@@ -31,6 +31,7 @@ std::wstring devicePath;
 std::wstring comPath;
 std::wstring devicePort;
 static int controllerCount = 0;
+UINT WM_TaskBarCreated = 0;
 std::wstring controllerCountWStr;
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -47,7 +48,7 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 	ScanForSerialDevices();
 	HANDLE lpHandles[NBOFEVENTS] = { NULL };
 
-	HANDLE hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
+	HANDLE hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_WRITE_THROUGH, NULL);
 	if (hSerial == INVALID_HANDLE_VALUE)
 	{
 		hSerial = NULL;
@@ -240,7 +241,6 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 					{
 						SetEvent(lpHandles[0]);
 					}
-					cmd = RASPBERRY_PI_GIP_POLL;
 				}
 			}
 			else
@@ -296,7 +296,7 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 			ScanForSerialDevices();
 			if (comPath != L"")
 			{
-				hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
+				hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_WRITE_THROUGH, NULL);
 				if (hSerial == INVALID_HANDLE_VALUE)
 				{
 					hSerial = NULL;
@@ -329,7 +329,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     // TODO: Place code here.
 	HANDLE mutex = CreateMutex(0, 0, L"SteamSwitchMutex");
 	MSG msg = {};
-
 	switch (GetLastError())
 	{
 	case ERROR_ALREADY_EXISTS:
@@ -436,7 +435,6 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
 
    AddNotificationIcon(hWnd);
-
    return TRUE;
 }
 
@@ -462,6 +460,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			SetEvent(hNewDeviceEvent);
 			CloseHandle(hNewDeviceEvent);
 		}
+		AddNotificationIcon(hWnd);
 		break;
 	}
 	case APPWM_ICONNOTIFY:
@@ -509,6 +508,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		{
 			HANDLE hLockDeviceEvent = OpenEvent(EVENT_MODIFY_STATE, FALSE, L"LockDeviceEvent");
 			HANDLE hShutdownEvent = OpenEvent(EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, L"ShutdownEvent");
+			HANDLE hNewDeviceEvent = OpenEvent(EVENT_MODIFY_STATE, FALSE, L"NewDeviceEvent");
+			if (hNewDeviceEvent && WaitForSingleObject(hNewDeviceEvent, 1) != WAIT_OBJECT_0)
+			{
+				SetEvent(hNewDeviceEvent);
+			}
 			if (hLockDeviceEvent)
 			{
 				SetEvent(hLockDeviceEvent);
@@ -559,7 +563,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					}
 					else
 					{
-						MessageBox(hWnd, L"The Raspberry Pi ZeroW2 device did not find any new controllers to pair.", L"GIPSerial Error", MB_OK | MB_ICONINFORMATION);
+						MessageBox(hWnd, L"The Raspberry Pi ZeroW2 device did not find any new controllers to pair.", L"GIPSerial Error", MB_OK | MB_ICONERROR);
 					}
 					ResetEvent(hFinshedSyncEvent);
 				}
@@ -601,7 +605,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					}
 					else
 					{
-						MessageBox(hWnd, L"The Raspberry Pi ZeroW2 device was unable to clear a single paired controller.\nTry restarting before trying again.", L"GIPSerial Error", MB_OK | MB_ICONWARNING);
+						MessageBox(hWnd, L"The Raspberry Pi ZeroW2 device was unable to clear a single paired controller.\nTry restarting before trying again.", L"GIPSerial Error", MB_OK | MB_ICONERROR);
 					}
 					ResetEvent(hFinshedClearSingleEvent);
 				}
@@ -676,6 +680,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_CREATE:
 	{
 		AddNotificationIcon(hWnd);
+		WM_TaskBarCreated = RegisterWindowMessage(L"TaskbarCreated");
 		break;
 	}
     case WM_DESTROY:
@@ -684,7 +689,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		break;
 	}
     default:
-        return DefWindowProc(hWnd, message, wParam, lParam);
+	{
+		if(message == WM_TaskBarCreated)
+		{
+			AddNotificationIcon(hWnd);
+		}
+		return DefWindowProc(hWnd, message, wParam, lParam);
+	}
+
     }
     return 0;
 }
