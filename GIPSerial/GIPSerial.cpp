@@ -21,7 +21,6 @@
 #define RASPBERRY_PI_GIP_SYNC 0xb0
 #define RASPBERRY_PI_GIP_CLEAR 0xb1
 #define RASPBERRY_PI_GIP_LOCK 0xb2
-#define RASPBERRY_PI_SYNCED_CONTROLLER_COUNT 0xb3
 #define RASPBERRY_PI_CLEAR_NEXT_SYNCED_CONTROLLER 0xb4
 
 // Global Variables:
@@ -194,30 +193,21 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 				{
 					CloseHandle(hSerial);
 					hSerial = NULL;
-					if (lpHandles[5])
-					{
-						SetEvent(lpHandles[5]);
-					}
+					controllerCount = 0;
 					break;
 				}
 				if (cmd != RASPBERRY_PI_GIP_POLL && !ReadFile(hSerial, &pwrStatus, sizeof(pwrStatus), NULL, NULL))
 				{
 					CloseHandle(hSerial);
+					controllerCount = 0;
 					hSerial = NULL;
-					if (lpHandles[5])
-					{
-						SetEvent(lpHandles[5]);
-					}
 					break;
 				}
 				else if (cmd == RASPBERRY_PI_GIP_POLL && !ReadFile(hSerial, &controllerCount, sizeof(controllerCount), NULL, NULL))
 				{
 					CloseHandle(hSerial);
+					controllerCount = 0;
 					hSerial = NULL;
-					if (lpHandles[5])
-					{
-						SetEvent(lpHandles[5]);
-					}
 					break;
 				}
 
@@ -226,24 +216,24 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 					if (hFinshedSyncEvent)
 					{
 						SetEvent(hFinshedSyncEvent);
-						cmd = RASPBERRY_PI_GIP_POLL;
 					}
+					cmd = RASPBERRY_PI_GIP_POLL;
 				}
 				if (controllerCount < lastControllerCount && cmd == RASPBERRY_PI_CLEAR_NEXT_SYNCED_CONTROLLER)
 				{
 					if (hFinshedClearSingleEvent)
 					{
 						SetEvent(hFinshedClearSingleEvent);
-						cmd = RASPBERRY_PI_GIP_POLL;
 					}
+					cmd = RASPBERRY_PI_GIP_POLL;
 				}
 				else if (controllerCount == 0 && cmd == RASPBERRY_PI_GIP_CLEAR)
 				{
 					if (hFinshedClearAllEvent)
 					{
 						SetEvent(hFinshedClearAllEvent);
-						cmd = RASPBERRY_PI_GIP_POLL;
 					}
+					cmd = RASPBERRY_PI_GIP_POLL;
 				}
 
 				if (cmd == RASPBERRY_PI_GIP_LOCK)
@@ -251,12 +241,33 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 					if (hFinshedLockDeviceEvent)
 					{
 						SetEvent(hFinshedLockDeviceEvent);
-						cmd = RASPBERRY_PI_GIP_POLL;
+
 					}
 					if (lpHandles[0])
 					{
 						SetEvent(lpHandles[0]);
-						cmd = RASPBERRY_PI_GIP_POLL;
+					}
+					cmd = RASPBERRY_PI_GIP_POLL;
+				}
+			}
+			else
+			{
+				Sleep(100);
+				ScanForSerialDevices();
+				if (comPath != L"")
+				{
+					hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+					if (hSerial == INVALID_HANDLE_VALUE)
+					{
+						hSerial = NULL;
+					}
+					else
+					{
+						DCB dcb = { 0 };
+						dcb.DCBlength = sizeof(dcb);
+						GetCommState(hSerial, &dcb);
+						dcb.BaudRate = CBR_9600;
+						SetCommState(hSerial, &dcb);
 					}
 				}
 			}
@@ -280,6 +291,11 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 		}
 		case 5: // hNewDeviceEvent
 		{
+			if (hSerial)
+			{
+				CloseHandle(hSerial);
+			}
+			hSerial = NULL;
 			if (lpHandles[5])
 			{
 				ResetEvent(lpHandles[5]);
@@ -287,7 +303,7 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 			ScanForSerialDevices();
 			if (comPath != L"")
 			{
-				hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, NULL, NULL);
+				hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
 				if (hSerial == INVALID_HANDLE_VALUE)
 				{
 					hSerial = NULL;
@@ -445,6 +461,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
+	case WM_POWERBROADCAST:
+	{
+		HANDLE hNewDeviceEvent = OpenEvent(SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, L"NewDeviceEvent");
+		if (hNewDeviceEvent)
+		{
+			SetEvent(hNewDeviceEvent);
+			CloseHandle(hNewDeviceEvent);
+		}
+		break;
+	}
 	case APPWM_ICONNOTIFY:
 	{
 		switch (lParam)
