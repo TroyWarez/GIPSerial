@@ -7,7 +7,7 @@
 #define MAX_LOADSTRING 100
 #define PI_VID L"0525"
 #define PI_PID L"a4a7"
-#define MB_WAIT_TIMEOUT 5000
+#define MB_WAIT_TIMEOUT 30000 // 30 seconds
 #define IDM_EXIT 105
 #define IDM_SYNC 106
 #define IDM_CLEAR 107
@@ -47,7 +47,7 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 	ScanForSerialDevices();
 	HANDLE lpHandles[NBOFEVENTS] = { NULL };
 
-	HANDLE hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_WRITE_FLAGS_WRITE_THROUGH, NULL);
+	HANDLE hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
 	if (hSerial == INVALID_HANDLE_VALUE)
 	{
 		hSerial = NULL;
@@ -73,7 +73,7 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 		lpHandles[1] = CreateEvent(NULL, FALSE, FALSE, L"SyncEvent");
 	}
 
-	HANDLE hFinshedSyncEvent = OpenEvent(EVENT_MODIFY_STATE, FALSE, L"FinshedSyncEvent");
+	HANDLE hFinshedSyncEvent = OpenEvent(SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, L"FinshedSyncEvent");
 	if (hFinshedSyncEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
 	{
 		hFinshedSyncEvent = CreateEvent(NULL, FALSE, FALSE, L"FinshedSyncEvent");
@@ -101,7 +101,7 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 		lpHandles[3] = CreateEventW(NULL, FALSE, FALSE, L"ClearAllEvent");
 	}
 
-	HANDLE hFinshedClearAllEvent = OpenEvent(EVENT_MODIFY_STATE, FALSE, L"FinshedClearAllEvent");
+	HANDLE hFinshedClearAllEvent = OpenEvent(SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, L"FinshedClearAllEvent");
 	if (hFinshedClearAllEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
 	{
 		hFinshedClearAllEvent = CreateEvent(NULL, FALSE, FALSE, L"FinshedClearAllEvent");
@@ -113,7 +113,7 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 		lpHandles[4] = CreateEvent(NULL, FALSE, FALSE, L"LockDeviceEvent");
 	}
 
-	HANDLE hFinshedLockDeviceEvent = OpenEvent(EVENT_MODIFY_STATE, FALSE, L"FinshedLockDeviceEvent");
+	HANDLE hFinshedLockDeviceEvent = OpenEvent(SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, L"FinshedLockDeviceEvent");
 	if (hFinshedLockDeviceEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
 	{
 		hFinshedLockDeviceEvent = CreateEvent(NULL, FALSE, FALSE, L"FinshedLockDeviceEvent");
@@ -196,14 +196,7 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 					controllerCount = 0;
 					break;
 				}
-				if (cmd != RASPBERRY_PI_GIP_POLL && !ReadFile(hSerial, &pwrStatus, sizeof(pwrStatus), NULL, NULL))
-				{
-					CloseHandle(hSerial);
-					controllerCount = 0;
-					hSerial = NULL;
-					break;
-				}
-				else if (cmd == RASPBERRY_PI_GIP_POLL && !ReadFile(hSerial, &controllerCount, sizeof(controllerCount), NULL, NULL))
+				if (!ReadFile(hSerial, &controllerCount, sizeof(controllerCount), NULL, NULL))
 				{
 					CloseHandle(hSerial);
 					controllerCount = 0;
@@ -551,6 +544,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			{
 				HANDLE hSyncEvent = OpenEvent(EVENT_MODIFY_STATE, FALSE, L"SyncEvent");
 				HANDLE hFinshedSyncEvent = OpenEvent(EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, L"FinshedSyncEvent");
+				HANDLE hNewDeviceEvent = OpenEvent(EVENT_MODIFY_STATE, FALSE, L"NewDeviceEvent");
+
+				if (hNewDeviceEvent && WaitForSingleObject(hNewDeviceEvent, 1) != WAIT_OBJECT_0)
+				{
+					SetEvent(hNewDeviceEvent);
+				}
 				if (hSyncEvent && hFinshedSyncEvent)
 				{
 					SetEvent(hSyncEvent);
@@ -587,6 +586,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			{
 				HANDLE hClearSingleEvent = OpenEvent(EVENT_MODIFY_STATE, FALSE, L"ClearSingleEvent");
 				HANDLE hFinshedClearSingleEvent = OpenEvent(EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, L"FinshedClearSingleEvent");
+				HANDLE hNewDeviceEvent = OpenEvent(EVENT_MODIFY_STATE, FALSE, L"NewDeviceEvent");
+
+				if (hNewDeviceEvent && WaitForSingleObject(hNewDeviceEvent, 1) != WAIT_OBJECT_0)
+				{
+					SetEvent(hNewDeviceEvent);
+				}
 				if (hClearSingleEvent && hFinshedClearSingleEvent)
 				{
 					SetEvent(hClearSingleEvent);
@@ -596,7 +601,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					}
 					else
 					{
-						MessageBox(hWnd, L"The Raspberry Pi ZeroW2 device was unable to clear all paired controllers.\nTry restarting before trying again.", L"GIPSerial Error", MB_OK | MB_ICONWARNING);
+						MessageBox(hWnd, L"The Raspberry Pi ZeroW2 device was unable to clear a single paired controller.\nTry restarting before trying again.", L"GIPSerial Error", MB_OK | MB_ICONWARNING);
 					}
 					ResetEvent(hFinshedClearSingleEvent);
 				}
@@ -623,6 +628,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			{
 				HANDLE hClearAllEvent = OpenEvent(EVENT_MODIFY_STATE, FALSE, L"ClearAllEvent");
 				HANDLE hFinshedClearAllEvent = OpenEvent(EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, L"FinshedClearAllEvent");
+				HANDLE hNewDeviceEvent = OpenEvent(EVENT_MODIFY_STATE, FALSE, L"NewDeviceEvent");
+
+				if (hNewDeviceEvent && WaitForSingleObject(hNewDeviceEvent, 1) != WAIT_OBJECT_0)
+				{
+					SetEvent(hNewDeviceEvent);
+				}
 				if (hClearAllEvent && hFinshedClearAllEvent)
 				{
 					ResetEvent(hClearAllEvent);
@@ -633,7 +644,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					}
 					else
 					{
-						MessageBox(hWnd, L"The Raspberry Pi ZeroW2 device was unable to clear a single paired controller.\nTry restarting before trying again.", L"GIPSerial Error", MB_OK | MB_ICONWARNING);
+						MessageBox(hWnd, L"The Raspberry Pi ZeroW2 device was unable to clear all paired controller.\nTry restarting before trying again.", L"GIPSerial Error", MB_OK | MB_ICONWARNING);
 					}
 					ResetEvent(hFinshedClearAllEvent);
 				}
