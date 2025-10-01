@@ -473,7 +473,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			AppendMenu(Hmenu, MF_STRING, IDM_EXIT, L"Close GIPSerial");
 			POINT p;
 			GetCursorPos(&p);
+			SetForegroundWindow(hWnd);
 			TrackPopupMenu(Hmenu, TPM_LEFTBUTTON, p.x, p.y, 0, hWnd, 0);
+			PostMessage(hWnd, WM_NULL, 0, 0);
 			break;
 		}
 		break;
