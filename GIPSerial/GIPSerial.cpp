@@ -12,6 +12,7 @@
 #define IDM_SYNC 106
 #define IDM_CLEAR 107
 #define IDM_CLEAR_SINGLE 108
+#define IDM_DEVICE_NOT_FOUND 109
 #define NBOFEVENTS 6
 
 #define APPWM_ICONNOTIFY (WM_APP + 1)
@@ -30,7 +31,7 @@ WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 std::wstring devicePath;
 std::wstring comPath;
 std::wstring devicePort;
-static int controllerCount = 0;
+static DWORD32 controllerCount = -1;
 UINT WM_TaskBarCreated = 0;
 std::wstring controllerCountWStr;
 // Forward declarations of functions included in this code module:
@@ -126,9 +127,9 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 		lpHandles[5] = CreateEvent(NULL, FALSE, FALSE, L"NewDeviceEvent");
 	}
 
-	int lastControllerCount = 0;
-	int cmd = RASPBERRY_PI_GIP_POLL;
-	int pwrStatus = 0xaf;
+	DWORD32 lastControllerCount = 0;
+	DWORD32 cmd = RASPBERRY_PI_GIP_POLL;
+	DWORD32 pwrStatus = 0xaf;
 	DWORD dwWaitResult = 0;
 	DWORD currentTime = 0;
 	DWORD endTime = 0;
@@ -245,6 +246,7 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 			}
 			else
 			{
+				controllerCount = -1;
 				Sleep(100);
 				ScanForSerialDevices();
 				if (comPath != L"")
@@ -354,19 +356,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_GIPSERIAL));
 
 		// Main message loop:
-		while (true)
+		while (GetMessage(&msg, nullptr, 0, 0))
 		{
-			if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+			if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
 			{
-				if (msg.message == WM_QUIT)
-				{
-					break;
-				}
-
 				TranslateMessage(&msg);
 				DispatchMessage(&msg);
 			}
-			Sleep(1);
 		}
 		return (int)msg.wParam;
 	}
@@ -470,7 +466,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		case WM_LBUTTONUP:
 		case WM_RBUTTONUP:
 			HMENU Hmenu = CreatePopupMenu();
-			if (controllerCount)
+			if (controllerCount != -1 )
 			{
 				if (controllerCount == 1)
 				{
@@ -480,15 +476,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				{
 					controllerCountWStr = L"Enable Pairing Mode: (" + std::to_wstring(controllerCount) + L") controllers paired.";
 				}
-				AppendMenu(Hmenu, MF_STRING, IDM_CLEAR, L"Clear All Paired Controllers");
-				AppendMenu(Hmenu, MF_STRING, IDM_CLEAR_SINGLE, L"Clear a Single Paired Controller");
+
+				if (controllerCount > 0)
+				{
+					AppendMenu(Hmenu, MF_STRING, IDM_CLEAR, L"Clear All Paired Controllers");
+					AppendMenu(Hmenu, MF_STRING, IDM_CLEAR_SINGLE, L"Clear a Single Paired Controller");
+				}
+
+				AppendMenu(Hmenu, MF_STRING, IDM_SYNC, controllerCountWStr.c_str());
+				AppendMenu(Hmenu, MF_STRING, IDM_EXIT, L"Close GIPSerial");
 			}
 			else
 			{
-				controllerCountWStr = L"Enable Pairing Mode: (0) controllers paired.";
+				AppendMenu(Hmenu, MF_STRING | MF_DISABLED, IDM_DEVICE_NOT_FOUND, L"The Raspberry Pi ZeroW2 device was not found.");
 			}
-			AppendMenu(Hmenu, MF_STRING, IDM_SYNC, controllerCountWStr.c_str());
-			AppendMenu(Hmenu, MF_STRING, IDM_EXIT, L"Close GIPSerial");
 			POINT p;
 			GetCursorPos(&p);
 			SetForegroundWindow(hWnd);
@@ -504,6 +505,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		// Parse the menu selections:
 		switch (wmId)
 		{
+		case IDM_DEVICE_NOT_FOUND:
+		{
+			MessageBox(hWnd, L"Do not run GIPSerial unless you have the required Raspberry Pi ZeroW2 serial device connected to your computer.", L"GIPSerial Error", MB_OK | MB_ICONERROR);
+			break;
+		}
 		case IDM_EXIT:
 		{
 			HANDLE hLockDeviceEvent = OpenEvent(EVENT_MODIFY_STATE, FALSE, L"LockDeviceEvent");
