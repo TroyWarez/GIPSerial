@@ -13,6 +13,7 @@
 #define IDM_CLEAR 107
 #define IDM_CLEAR_SINGLE 108
 #define IDM_DEVICE_NOT_FOUND 109
+#define IDM_DEVICE_NOT_FOUND_EXIT 110
 #define NBOFEVENTS 6
 
 #define APPWM_ICONNOTIFY (WM_APP + 1)
@@ -489,6 +490,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			else
 			{
 				AppendMenu(Hmenu, MF_STRING | MF_DISABLED, IDM_DEVICE_NOT_FOUND, L"The Raspberry Pi ZeroW2 device was not found.");
+				AppendMenu(Hmenu, MF_STRING, IDM_DEVICE_NOT_FOUND_EXIT, L"Close GIPSerial");
 			}
 			POINT p;
 			GetCursorPos(&p);
@@ -508,6 +510,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		case IDM_DEVICE_NOT_FOUND:
 		{
 			MessageBox(hWnd, L"Do not run GIPSerial unless you have the required Raspberry Pi ZeroW2 serial device connected to your computer.", L"GIPSerial Error", MB_OK | MB_ICONERROR);
+			break;
+		}
+		case IDM_DEVICE_NOT_FOUND_EXIT:
+		{
+			DestroyWindow(hWnd);
+			PostQuitMessage(0);
 			break;
 		}
 		case IDM_EXIT:
