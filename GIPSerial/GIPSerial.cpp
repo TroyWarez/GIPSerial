@@ -29,6 +29,10 @@
 HINSTANCE hInst;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
+
+HDEVNOTIFY hDeviceSerial = NULL;
+HPOWERNOTIFY hPowerNotify = NULL;
+
 std::wstring devicePath;
 std::wstring comPath;
 std::wstring devicePort;
@@ -50,7 +54,7 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 	ScanForSerialDevices();
 	HANDLE lpHandles[NBOFEVENTS] = { NULL };
 
-	HANDLE hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_WRITE_THROUGH, NULL);
+	HANDLE hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
 	if (hSerial == INVALID_HANDLE_VALUE)
 	{
 		hSerial = NULL;
@@ -196,7 +200,7 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 				{
 					CloseHandle(hSerial);
 					hSerial = NULL;
-					controllerCount = 0;
+					controllerCount = -1;
 					break;
 				}
 				if (!ReadFile(hSerial, &controllerCount, sizeof(controllerCount), NULL, NULL))
@@ -423,13 +427,18 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    ShowWindow(hWnd, SW_HIDE);
    UpdateWindow(hWnd);
-
-   DEV_BROADCAST_DEVICEINTERFACE hidFilter = { };
-   hidFilter.dbcc_size = sizeof(DEV_BROADCAST_DEVICEINTERFACE);
-   hidFilter.dbcc_classguid = GUID_DEVINTERFACE_COMPORT;
-   hidFilter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
-   HDEVNOTIFY hDeviceHID = RegisterDeviceNotification(hWnd, &hidFilter, DEVICE_NOTIFY_WINDOW_HANDLE);
-
+   if (hDeviceSerial == NULL)
+   {
+	   DEV_BROADCAST_DEVICEINTERFACE serialFilter = { };
+	   serialFilter.dbcc_size = sizeof(DEV_BROADCAST_DEVICEINTERFACE);
+	   serialFilter.dbcc_classguid = GUID_DEVINTERFACE_COMPORT;
+	   serialFilter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
+	   hDeviceSerial = RegisterDeviceNotification(hWnd, &serialFilter, DEVICE_NOTIFY_WINDOW_HANDLE);
+   }
+   if (hPowerNotify == NULL)
+   {
+	   hPowerNotify = RegisterSuspendResumeNotification(hWnd, DEVICE_NOTIFY_WINDOW_HANDLE);
+   }
 
    AddNotificationIcon(hWnd);
    return TRUE;
@@ -699,6 +708,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	}
     case WM_DESTROY:
 	{
+		if (hDeviceSerial)
+		{
+			UnregisterDeviceNotification(hDeviceSerial);
+			hDeviceSerial = NULL;
+		}
+		if (hPowerNotify)
+		{
+			UnregisterSuspendResumeNotification(hPowerNotify);
+			hPowerNotify = NULL;
+		}
 		PostQuitMessage(0);
 		break;
 	}
