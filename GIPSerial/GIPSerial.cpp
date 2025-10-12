@@ -48,13 +48,134 @@ BOOL                FindAllDevices(const GUID* ClassGuid, std::vector<std::wstri
 void                ScanForSerialDevices();
 BOOL                AddNotificationIcon(HWND hwnd);
 
+BOOL ReadADoubleWord32(HANDLE hComm, DWORD32* lpDW32)
+{
+	OVERLAPPED osRead = { 0 };
+	DWORD dwRead = 0;
+	DWORD dwRes = 0;
+	BOOL fRes = FALSE;
+	HANDLE lpHandles[2] = { NULL };
+	if (hComm)
+	{
+		// Create this read operation's OVERLAPPED structure's hEvent.
+		osRead.hEvent = OpenEvent(SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, L"SerialReadEvent");
+		if (osRead.hEvent == NULL)
+		{
+			return FALSE;
+		 }
+		lpHandles[0] = osRead.hEvent;
+		lpHandles[1] = OpenEvent(SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, L"ShutdownEvent");
+
+		if ( lpHandles[1] == NULL)
+			// error creating overlapped event handle
+			return FALSE;
+
+
+		// Issue read.
+		if (!ReadFile(hComm, lpDW32, sizeof(DWORD32), &dwRead, &osRead)) {
+			if (GetLastError() != ERROR_IO_PENDING) {
+				// ReadFile failed, but isn't delayed. Report error and abort.
+				fRes = FALSE;
+			}
+			else
+				// Read is pending.
+				dwRes = WaitForMultipleObjects(ARRAYSIZE(lpHandles), lpHandles, FALSE, INFINITE);
+			switch (dwRes)
+			{
+				// OVERLAPPED structure's event has been signaled. 
+			case 0:
+				if (!GetOverlappedResult(hComm, &osRead, &dwRead, FALSE))
+					fRes = FALSE;
+				else
+					// Read operation completed successfully.
+					fRes = TRUE;
+				break;
+
+			default:
+				// An error has occurred in WaitForSingleObject.
+				// This usually indicates a problem with the
+			   // OVERLAPPED structure's event handle.
+				fRes = FALSE;
+				break;
+			}
+		}
+		else {
+			// ReadFile completed immediately.
+			fRes = TRUE;
+		}
+		CloseHandle(osRead.hEvent);
+		CloseHandle(lpHandles[1]);
+	}
+			 return fRes;
+}
+
+BOOL WriteADoubleWord32(HANDLE hComm, DWORD32* lpDW32)
+{
+	OVERLAPPED osWrite = { 0 };
+	DWORD dwWrite = 0;
+	DWORD dwRes = 0;
+	BOOL fRes = FALSE;
+	HANDLE lpHandles[2] = { NULL };
+	if (hComm)
+	{
+		// Create this write operation's OVERLAPPED structure's hEvent.
+		osWrite.hEvent = OpenEvent(SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, L"SerialWriteEvent");
+
+		if (osWrite.hEvent == NULL )
+			// error creating overlapped event handle
+			return FALSE;
+
+		lpHandles[0] = osWrite.hEvent;
+		lpHandles[1] = OpenEvent(SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, L"ShutdownEvent");
+		if (lpHandles[1] == NULL)
+			// error creating overlapped event handle
+			return FALSE;
+		// Issue write.
+		if (!WriteFile(hComm, lpDW32, sizeof(DWORD32), &dwWrite, &osWrite)) {
+			if (GetLastError() != ERROR_IO_PENDING) {
+				// WriteFile failed, but isn't delayed. Report error and abort.
+				fRes = FALSE;
+			}
+			else
+				// Write is pending.
+				dwRes = WaitForMultipleObjects(ARRAYSIZE(lpHandles), lpHandles, FALSE, INFINITE);
+			switch (dwRes)
+			{
+				// OVERLAPPED structure's event has been signaled. 
+			case 0:
+				if (!GetOverlappedResult(hComm, &osWrite, &dwWrite, FALSE))
+					fRes = FALSE;
+				else
+					// Write operation completed successfully.
+					fRes = TRUE;
+				break;
+			default:
+				// An error has occurred in WaitForSingleObject.
+				// This usually indicates a problem with the
+			   // OVERLAPPED structure's event handle.
+				fRes = FALSE;
+				break;
+			}
+		}
+		else {
+			// WriteFile completed immediately.
+			fRes = TRUE;
+		}
+		CloseHandle(osWrite.hEvent);
+		CloseHandle(lpHandles[1]);
+
+	}
+	return fRes;
+}
+
 DWORD WINAPI SerialThread(LPVOID lpParam) {
 
 	UNREFERENCED_PARAMETER(lpParam);
 	ScanForSerialDevices();
 	HANDLE lpHandles[NBOFEVENTS] = { NULL };
 
-	HANDLE hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
+	HANDLE hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
+	DWORD32 er = GetLastError();
 	if (hSerial == INVALID_HANDLE_VALUE)
 	{
 		hSerial = NULL;
@@ -78,6 +199,26 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 	if (lpHandles[1] == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
 	{
 		lpHandles[1] = CreateEvent(NULL, FALSE, FALSE, L"SyncEvent");
+	}
+
+	HANDLE hReadEvent = OpenEvent(SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, L"SerialReadEvent");
+	if (hReadEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
+	{
+		hReadEvent = CreateEvent(NULL, FALSE, FALSE, L"SerialReadEvent");
+	}
+	if (hReadEvent)
+	{
+		ResetEvent(hReadEvent);
+	}
+
+	HANDLE hWriteEvent = OpenEvent(SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, L"SerialWriteEvent");
+	if (hWriteEvent == NULL && GetLastError() == ERROR_FILE_NOT_FOUND)
+	{
+		hWriteEvent = CreateEvent(NULL, FALSE, FALSE, L"SerialWriteEvent");
+	}
+	if (hWriteEvent)
+	{
+		ResetEvent(hWriteEvent);
 	}
 
 	HANDLE hFinshedSyncEvent = OpenEvent(SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, L"FinshedSyncEvent");
@@ -196,17 +337,11 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 					endTime = 0;
 				}
 
-				if (!WriteFile(hSerial, &cmd, sizeof(cmd), NULL, NULL))
+				if (!WriteADoubleWord32(hSerial, &cmd) ||
+					!ReadADoubleWord32(hSerial, &controllerCount))
 				{
 					CloseHandle(hSerial);
-					hSerial = NULL;
 					controllerCount = -1;
-					break;
-				}
-				if (!ReadFile(hSerial, &controllerCount, sizeof(controllerCount), NULL, NULL))
-				{
-					CloseHandle(hSerial);
-					controllerCount = 0;
 					hSerial = NULL;
 					break;
 				}
@@ -256,7 +391,7 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 				ScanForSerialDevices();
 				if (comPath != L"")
 				{
-					hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+					hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
 					if (hSerial == INVALID_HANDLE_VALUE)
 					{
 						hSerial = NULL;
@@ -286,6 +421,16 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 			{
 				CloseHandle(hSerial);
 				hSerial = NULL;
+			}
+			if (hWriteEvent)
+			{
+				CloseHandle(hWriteEvent);
+				hWriteEvent = NULL;
+			}
+			if (hReadEvent)
+			{
+				CloseHandle(hReadEvent);
+				hReadEvent = NULL;
 			}
 			return 0;
 		}
@@ -460,11 +605,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     {
 	case WM_POWERBROADCAST:
 	{
-		HANDLE hNewDeviceEvent = OpenEvent(SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, L"NewDeviceEvent");
-		if (hNewDeviceEvent)
+		if (wParam == PBT_APMSUSPEND)
 		{
-			SetEvent(hNewDeviceEvent);
-			CloseHandle(hNewDeviceEvent);
+			HANDLE hNewDeviceEvent = OpenEvent(SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, L"NewDeviceEvent");
+			if (hNewDeviceEvent)
+			{
+				SetEvent(hNewDeviceEvent);
+				CloseHandle(hNewDeviceEvent);
+			}
 		}
 		AddNotificationIcon(hWnd);
 		break;
