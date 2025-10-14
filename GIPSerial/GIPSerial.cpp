@@ -37,7 +37,7 @@ std::wstring devicePath;
 std::wstring comPath;
 std::wstring devicePort;
 static DWORD32 controllerCount = -1;
-UINT WM_TaskBarCreated = 0;
+static UINT WM_TaskBarCreated = 0;
 std::wstring controllerCountWStr;
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -175,7 +175,6 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 	HANDLE lpHandles[NBOFEVENTS] = { NULL };
 
 	HANDLE hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
-	DWORD32 er = GetLastError();
 	if (hSerial == INVALID_HANDLE_VALUE)
 	{
 		hSerial = NULL;
@@ -836,8 +835,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			break;
 		}
 		}
+		break;
 	}
-	break;
 	case WM_DEVICECHANGE:
 	{
 		HANDLE hNewDeviceEvent = OpenEvent(EVENT_MODIFY_STATE, FALSE, L"NewDeviceEvent");
