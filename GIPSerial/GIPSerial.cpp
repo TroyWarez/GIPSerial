@@ -583,8 +583,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    {
 	   hPowerNotify = RegisterSuspendResumeNotification(hWnd, DEVICE_NOTIFY_WINDOW_HANDLE);
    }
-
-   AddNotificationIcon(hWnd);
+   WM_TaskBarCreated = RegisterWindowMessage(L"TaskbarCreated");
    return TRUE;
 }
 
@@ -613,7 +612,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				CloseHandle(hNewDeviceEvent);
 			}
 		}
-		AddNotificationIcon(hWnd);
 		break;
 	}
 	case APPWM_ICONNOTIFY:
@@ -850,7 +848,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_CREATE:
 	{
 		AddNotificationIcon(hWnd);
-		WM_TaskBarCreated = RegisterWindowMessage(L"TaskbarCreated");
 		break;
 	}
     case WM_DESTROY:
