@@ -447,7 +447,7 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 			ScanForSerialDevices();
 			if (comPath != L"")
 			{
-				hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_WRITE_THROUGH, NULL);
+				hSerial = CreateFile(comPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
 				if (hSerial == INVALID_HANDLE_VALUE)
 				{
 					hSerial = NULL;
@@ -584,6 +584,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	   hPowerNotify = RegisterSuspendResumeNotification(hWnd, DEVICE_NOTIFY_WINDOW_HANDLE);
    }
    WM_TaskBarCreated = RegisterWindowMessage(L"TaskbarCreated");
+   AddNotificationIcon(hWnd);
+
    return TRUE;
 }
 
