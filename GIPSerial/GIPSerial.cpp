@@ -37,7 +37,7 @@ std::wstring devicePath;
 std::wstring comPath;
 std::wstring devicePort;
 static DWORD32 controllerCount = -1;
-static UINT WM_TaskBarCreated = 0;
+UINT WM_TaskBarCreated = 0;
 std::wstring controllerCountWStr;
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -663,11 +663,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		// Parse the menu selections:
 		switch (wmId)
 		{
-		case IDM_DEVICE_NOT_FOUND:
-		{
-			MessageBox(hWnd, L"Do not run GIPSerial unless you have the required Raspberry Pi ZeroW2 serial device connected to your computer.", L"GIPSerial Error", MB_OK | MB_ICONERROR);
-			break;
-		}
 		case IDM_DEVICE_NOT_FOUND_EXIT:
 		{
 			DestroyWindow(hWnd);
@@ -688,7 +683,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				SetEvent(hLockDeviceEvent);
 				if (hShutdownEvent && WaitForSingleObject(hShutdownEvent, MB_WAIT_TIMEOUT) == WAIT_OBJECT_0)
 				{
-					MessageBox(hWnd, L"The device is now locked and can be re enabled by running GIPSerial again.\nThis is to prevent accidentally shutdowns from happening.", L"GIPSerial Important Information", MB_OK | MB_ICONINFORMATION);
+					MessageBox(hWnd, L"The device is now locked and can be unlocked by running GIPSerial again.\n", L"GIPSerial Important Information", MB_OK | MB_ICONINFORMATION);
 				}
 				else
 				{
@@ -978,8 +973,7 @@ BOOL AddNotificationIcon(HWND hwnd)
 	nid.uFlags = NIF_TIP | NIF_ICON | NIF_MESSAGE | NIF_INFO | 0x00000080;
 	nid.uCallbackMessage = WM_USER + 200;
 	nid.hIcon = LoadIcon(hInst, MAKEINTRESOURCE(IDI_SMALL));
-	std::copy(L"Click here to open GIP Serial options", L"Click here to open GIP Serial options" + 38, nid.szTip);
-	std::copy(L"Click here to open GIP Serial options", L"Click here to open GIP Serial options" + 26, nid.szTip);
+	lstrcpy(nid.szTip, L"Click here to open GIP Serial options");
 	nid.uCallbackMessage = APPWM_ICONNOTIFY;
 	return Shell_NotifyIcon(NIM_ADD, &nid);
 }
