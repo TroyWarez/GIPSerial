@@ -187,6 +187,7 @@ DWORD WINAPI SerialThread(LPVOID lpParam) {
 		GetCommState(hSerial, &dcb);
 		dcb.BaudRate = CBR_9600;
 		SetCommState(hSerial, &dcb);
+		PurgeComm(hSerial, PURGE_TXCLEAR | PURGE_RXCLEAR);
 	}
 
 	lpHandles[0] = OpenEvent( SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, L"ShutdownEvent");
@@ -685,11 +686,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				SetEvent(hLockDeviceEvent);
 				if (hShutdownEvent && WaitForSingleObject(hShutdownEvent, MB_WAIT_TIMEOUT) == WAIT_OBJECT_0)
 				{
-					MessageBox(hWnd, L"The device is now locked and can be unlocked by running GIPSerial again.\n", L"GIPSerial Important Information", MB_OK | MB_ICONINFORMATION);
+					MessageBox(hWnd, L"The device is now locked and can be unlocked by running GIPSerial again.", L"GIPSerial Important Information", MB_OK | MB_ICONINFORMATION);
 				}
 				else
 				{
-					MessageBox(hWnd, L"The device may be unlocked and could power down the current computer unexpectedly when a paired controlled is used.\n\nRun GIPSerial again to fix this.\n\nDo not run GIPSerial unless you have the required Raspberry Pi ZeroW2 serial device connected to your computer.", L"GIPSerial Error", MB_OK | MB_ICONERROR);
+					MessageBox(hWnd, L"The device may be unlocked and could power down the your computer unexpectedly when a paired controlled is used.\n\nRun GIPSerial again to attempt to fix this.\n\nDo not run GIPSerial unless you have the required Raspberry Pi ZeroW2 serial device connected to your computer at all times.", L"GIPSerial Error", MB_OK | MB_ICONERROR);
 				}
 			}
 			if (hLockDeviceEvent)
@@ -706,7 +707,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		case IDM_SYNC:
 		{
-			int selection = MessageBox(hWnd, L"Enable paring mode for the Raspberry Pi ZeroW2 device?\nAnother message box window will appear to indicate if a controller was paired or not.\nClick ok to continue or click cancel to exit.", L"GIPSerial", MB_OKCANCEL | MB_ICONQUESTION);
+			int selection = MessageBox(hWnd, L"Enable paring mode for the Raspberry Pi ZeroW2 device?\nAnother message box window will appear to indicate if a controller was paired successfully or not.\nClick ok to continue or click cancel to exit.", L"GIPSerial", MB_OKCANCEL | MB_ICONQUESTION);
 			switch (selection)
 			{
 			case IDCANCEL:
@@ -726,11 +727,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					SetEvent(hSyncEvent);
 					if (WaitForSingleObject(hFinshedSyncEvent, MB_WAIT_TIMEOUT) == WAIT_OBJECT_0)
 					{
-						MessageBox(hWnd, L"The controller is now paired with the Raspberry Pi ZeroW2 device. To unpair this controller select the option \"Clear All Paired Controllers\" or \"Clear a Single Paired Controller\"", L"GIPSerial Important Information", MB_OK | MB_ICONINFORMATION);
+						MessageBox(hWnd, L"The controller is now paired with the Raspberry Pi ZeroW2 device. To unpair this controller select the option \"Clear All Paired Controllers\" or \"Clear a Single Paired Controller\" from the system tray menu using the icon on the task bar.", L"GIPSerial Important Information", MB_OK | MB_ICONINFORMATION);
 					}
 					else
 					{
-						MessageBox(hWnd, L"The Raspberry Pi ZeroW2 device did not find any new controllers to pair.", L"GIPSerial Error", MB_OK | MB_ICONERROR);
+						MessageBox(hWnd, L"The Raspberry Pi ZeroW2 device did not find any new controllers to pair.", L"GIPSerial Error", MB_OK | MB_ICONWARNING);
 					}
 					ResetEvent(hFinshedSyncEvent);
 				}
@@ -748,7 +749,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		case IDM_CLEAR_SINGLE:
 		{
-			int selection = MessageBox(hWnd, L"Warning: This option will attempt to unpair the next controller that tries to connect to the device.\nClick ok to continue or click cancel to exit.", L"GIPSerial Warning", MB_OKCANCEL | MB_ICONWARNING);
+			int selection = MessageBox(hWnd, L"Warning: This option will attempt to unpair the next controller that tries to connect to the Raspberry Pi ZeroW2 device.\nClick ok to continue or click cancel to exit.", L"GIPSerial Warning", MB_OKCANCEL | MB_ICONWARNING);
 			switch (selection)
 			{
 			case IDCANCEL:
@@ -768,11 +769,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					SetEvent(hClearSingleEvent);
 					if (WaitForSingleObject(hFinshedClearSingleEvent, MB_WAIT_TIMEOUT) == WAIT_OBJECT_0)
 					{
-						MessageBox(hWnd, L"The controller was unpaired successfully.\nYou can now safety pair this controller to another device.\nTo pair again click the option \"Enable Pairing Mode\".", L"GIPSerial Important Information", MB_OK | MB_ICONINFORMATION);
+						MessageBox(hWnd, L"The controller was unpaired successfully.\nYou can now safety pair this controller to another device.\nTo pair again click the option \"Enable Pairing Mode\" from the system tray menu using the icon on the task bar.", L"GIPSerial Important Information", MB_OK | MB_ICONINFORMATION);
 					}
 					else
 					{
-						MessageBox(hWnd, L"The Raspberry Pi ZeroW2 device was unable to clear a single paired controller.\nTry restarting before trying again.", L"GIPSerial Error", MB_OK | MB_ICONERROR);
+						MessageBox(hWnd, L"The Raspberry Pi ZeroW2 device was unable to clear a single paired controller.\nTry restarting your computer before trying again.", L"GIPSerial Error", MB_OK | MB_ICONERROR);
 					}
 					ResetEvent(hFinshedClearSingleEvent);
 				}
@@ -790,7 +791,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		case IDM_CLEAR:
 		{
-			int selection = MessageBox(hWnd, L"Warning: This option will attempt to unpair all synced controllers.\nClick ok to continue or click cancel to exit.", L"GIPSerial Warning", MB_OKCANCEL | MB_ICONWARNING);
+			int selection = MessageBox(hWnd, L"Warning: This option will attempt to unpair all paired controllers.\nClick ok to continue or click cancel to exit.", L"GIPSerial Warning", MB_OKCANCEL | MB_ICONWARNING);
 			switch (selection)
 			{
 			case IDCANCEL:
@@ -811,11 +812,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					SetEvent(hClearAllEvent);
 					if (WaitForSingleObject(hFinshedClearAllEvent, MB_WAIT_TIMEOUT) == WAIT_OBJECT_0)
 					{
-						MessageBox(hWnd, L"All controllers were unpaired successfully.\nYou can now safety pair this controller to another device.\nTo pair again click the option \"Enable Pairing Mode\".", L"GIPSerial Important Information", MB_OK | MB_ICONINFORMATION);
+						MessageBox(hWnd, L"All controllers were unpaired successfully.\nYou can now safety pair this controller to another device.\nTo pair again click the option \"Enable Pairing Mode\" from the system tray menu using the icon on the task bar.", L"GIPSerial Important Information", MB_OK | MB_ICONINFORMATION);
 					}
 					else
 					{
-						MessageBox(hWnd, L"The Raspberry Pi ZeroW2 device was unable to clear all paired controller.\nTry restarting before trying again.", L"GIPSerial Error", MB_OK | MB_ICONWARNING);
+						MessageBox(hWnd, L"The Raspberry Pi ZeroW2 device was unable to clear all paired controller.\nTry restarting your computer before trying again.", L"GIPSerial Error", MB_OK | MB_ICONWARNING);
 					}
 					ResetEvent(hFinshedClearAllEvent);
 				}
