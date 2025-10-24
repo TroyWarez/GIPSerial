@@ -606,7 +606,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     {
 	case WM_POWERBROADCAST:
 	{
-		if (wParam == PBT_APMSUSPEND)
+		if (wParam == PBT_APMRESUMEAUTOMATIC ||
+			wParam == PBT_APMRESUMESUSPEND)
 		{
 			HANDLE hNewDeviceEvent = OpenEvent(SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, L"NewDeviceEvent");
 			if (hNewDeviceEvent)
