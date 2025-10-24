@@ -164,7 +164,7 @@ BOOL WriteADoubleWord32(HANDLE hComm, DWORD32* lpDW32)
 		CloseHandle(osWrite.hEvent);
 		CloseHandle(lpHandles[1]);
 
-		PurgeComm(hComm, PURGE_TXCLEAR | PURGE_RXCLEAR);
+		PurgeComm(hComm, PURGE_RXCLEAR);
 	}
 	return fRes;
 }
